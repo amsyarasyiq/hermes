@@ -73,6 +73,8 @@ RUNTIME_HV_FIELD_PROTOTYPE(parseFloatFunction)
 RUNTIME_HV_FIELD_PROTOTYPE(requireFunction)
 RUNTIME_HV_FIELD_PROTOTYPE(jsErrorStackAccessor)
 
+RUNTIME_HV_FIELD_PROTOTYPE(zipFilePrototype)
+
 // TODO: for Serialization/Deserialization  after global object initialization
 // we record specialCodeBlockDomain_ and create runtimemodule later need to
 // revisit this in stage 2

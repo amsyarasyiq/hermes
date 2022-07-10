@@ -17,6 +17,7 @@
 #include "hermes/VM/JSTypedArray.h"
 #include "hermes/VM/JSWeakMapImpl.h"
 #include "hermes/VM/PrimitiveBox.h"
+#include "hermes/VM/JSZipFile.h"
 
 #include <limits>
 namespace hermes {

@@ -83,6 +83,7 @@ CELL_CLASS(RegExpStringIterator, "RegExp String Iterator")
 CELL_CLASS(RequireContext, "RequireContext")
 CELL_CLASS(Generator, "Generator")
 CELL_CLASS(Proxy, "Proxy")
+CELL_CLASS(ZipFile, "ZipFile")
 
 CELL_KIND(BoundFunction)
 CELL_KIND(NativeFunction)

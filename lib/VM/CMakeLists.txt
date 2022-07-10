@@ -39,6 +39,7 @@ set(source_files
   JSNativeFunctions.cpp
   JSTypedArray.cpp
   JSWeakMapImpl.cpp
+  JSZipFile.cpp
   LimitedStorageProvider.cpp
   DecoratedObject.cpp
   HostModel.cpp
@@ -116,6 +117,7 @@ set(source_files
   JSLib/require.cpp
   JSLib/AliuHermes.cpp
   JSLib/AliuFS.cpp
+  JSLib/ZipFile.cpp
 )
 
 if (${HERMESVM_GCKIND} STREQUAL "MALLOC")
@@ -174,6 +176,7 @@ add_hermes_library(hermesVMRuntime STATIC ${source_files}
     ${link_libs}
     hermesHBCBackend
     hermesParser
+    zip
 )
 
 add_hermes_library(hermesVMRuntimeLean STATIC ${source_files}

@@ -402,6 +402,7 @@ NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<JSWeakMap>)
 NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<JSWeakSet>)
 NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<JSGeneratorFunction>)
 NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<JSAsyncFunction>)
+NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<JSZipFile>)
 
 #define TYPED_ARRAY(name, type) \
   NATIVE_CONSTRUCTOR(NativeConstructor::creatorFunction<name##Array>)

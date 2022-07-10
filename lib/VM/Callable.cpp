@@ -23,6 +23,7 @@
 #include "hermes/VM/SmallXString.h"
 #include "hermes/VM/StackFrame-inline.h"
 #include "hermes/VM/StringPrimitive.h"
+#include "hermes/VM/JSZipFile.h"
 
 #include "llvh/ADT/ArrayRef.h"
 

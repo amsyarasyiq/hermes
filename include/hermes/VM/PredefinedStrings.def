@@ -456,6 +456,12 @@ STR(exists, "exists")
 STR(writeFile, "writeFile")
 STR(readFile, "readFile")
 
+STR(ZipFile, "ZipFile")
+STR(openEntry, "openEntry")
+STR(readEntry, "readEntry")
+STR(closeEntry, "closeEntry")
+STR(close, "close")
+
 STR(require, "require")
 STR(requireFast, "requireFast")
 STR(context, "context")

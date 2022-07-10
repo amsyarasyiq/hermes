@@ -554,6 +554,13 @@ void initGlobalObject(Runtime *runtime, const JSLibFlags &jsLibFlags) {
           runtime, Handle<JSObject>::vmcast(&runtime->functionPrototype))
           .getHermesValue();
 
+  // "Forward declaration" of ZipFile.prototype. Its properties will be
+  // populated later.
+  runtime->zipFilePrototype =
+      JSObject::create(
+          runtime, Handle<JSObject>::vmcast(&runtime->objectPrototype))
+          .getHermesValue();
+
   // Object constructor.
   createObjectConstructor(runtime);
 
@@ -646,6 +653,9 @@ void initGlobalObject(Runtime *runtime, const JSLibFlags &jsLibFlags) {
   if (LLVM_UNLIKELY(runtime->hasES6Proxy())) {
     createProxyConstructor(runtime);
   }
+
+  // ZipFile constructor.
+  createZipFileConstructor(runtime);
 
   // Define the global Math object
   runtime->ignoreAllocationFailure(JSObject::defineOwnProperty(

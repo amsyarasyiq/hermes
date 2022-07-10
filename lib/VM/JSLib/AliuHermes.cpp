@@ -4,6 +4,7 @@
 #include "hermes/BCGen/HBC/BytecodeDisassembler.h"
 #include "hermes/BCGen/HBC/HBC.h"
 #include "hermes/VM/HiddenClass.h"
+#include "hermes/VM/JSArrayBuffer.h"
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -157,26 +158,29 @@ class MappedFileBuffer : public Buffer {
   int fd_;
 };
 
-// AliuHermes.run(path: string)
+// AliuHermes.run(path: string, buffer?: ArrayBuffer)
 CallResult<HermesValue>
 hermesInternalRun(void *, Runtime *runtime, NativeArgs args) {
-  if (!args.getArg(0).isString()) {
+  auto pathHandle = args.dyncastArg<StringPrimitive>(0);
+  if (!pathHandle) {
     return runtime->raiseTypeError("Path has to be a string");
   }
 
-  auto str = args.dyncastArg<StringPrimitive>(0);
-  std::string path;
-  auto view = StringPrimitive::createStringView(runtime, str);
-  if (view.isASCII()) {
-    path = std::string(view.begin(), view.end());
-  } else {
-    SmallU16String<4> allocator;
-    convertUTF16ToUTF8WithReplacements(path, view.getUTF16Ref(allocator));
-  }
+  auto path = toString(runtime, pathHandle);
 
-  auto buffer = std::make_unique<MappedFileBuffer>(path);
-  if (buffer->error) {
-    return runtime->raiseError(buffer->error);
+  std::unique_ptr<Buffer> buffer;
+
+  if (auto arrayBuffer = args.dyncastArg<JSArrayBuffer>(1)) {
+    // TODO figure out how to GC lock arrayBuffer until Buffer is no longer needed
+    buffer.reset(new Buffer(arrayBuffer->getDataBlock(), arrayBuffer->size()));
+  } else if (args.getArg(1).isUndefined()) {
+    auto mappedFileBuffer = new MappedFileBuffer(path);
+    if (mappedFileBuffer->error) {
+      return runtime->raiseError(mappedFileBuffer->error);
+    }
+    buffer.reset(mappedFileBuffer);
+  } else {
+    return runtime->raiseTypeError("Buffer has to be an ArrayBuffer");
   }
 
   auto bytecode_err =
