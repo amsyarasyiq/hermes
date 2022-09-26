@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <memory>
 #include <system_error>
+#include <cstring>
+#include <cstdlib>
 
 namespace hermes {
 namespace vm {
@@ -171,8 +173,14 @@ hermesInternalRun(void *, Runtime *runtime, NativeArgs args) {
   std::unique_ptr<Buffer> buffer;
 
   if (auto arrayBuffer = args.dyncastArg<JSArrayBuffer>(1)) {
-    // TODO figure out how to GC lock arrayBuffer until Buffer is no longer needed
-    buffer.reset(new Buffer(arrayBuffer->getDataBlock(), arrayBuffer->size()));
+    auto size = arrayBuffer->size();
+    if (!size)
+      return runtime->raiseTypeError("Buffer has to be non empty");
+
+    uint8_t *buf = (uint8_t *)malloc(size);
+    if (!buf) return runtime->raiseError("Failed to alloc buffer for hermes code");
+    std::memcpy(buf, arrayBuffer->getDataBlock(), size);
+    buffer.reset(new Buffer(buf, size));
   } else if (args.getArg(1).isUndefined()) {
     auto mappedFileBuffer = new MappedFileBuffer(path);
     if (mappedFileBuffer->error) {

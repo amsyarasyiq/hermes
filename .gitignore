@@ -27,3 +27,4 @@ test/ApplePlatformsIntegrationTestApp/ApplePlatformsIntegrationTestApp.xcworkspa
 
 # Intl testing
 android/intltest/java/com/facebook/hermes/test/assets/**
+.cache
