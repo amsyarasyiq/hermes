@@ -237,6 +237,7 @@ aliuFSreadFile(void *, Runtime *runtime, NativeArgs args) {
     if (LLVM_UNLIKELY(
             buffer->createDataBlock(runtime, size, false) ==
             ExecutionStatus::EXCEPTION)) {
+      fclose(f);
       return ExecutionStatus::EXCEPTION;
     }
 
