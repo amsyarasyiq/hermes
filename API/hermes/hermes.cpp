@@ -1409,8 +1409,10 @@ jsi::Value HermesRuntimeImpl::evaluatePreparedJavaScript(
 jsi::Value HermesRuntimeImpl::evaluateJavaScript(
     const std::shared_ptr<const jsi::Buffer> &buffer,
     const std::string &sourceURL) {
-  auto isMainBundle = sourceURL == "index.android.bundle" ||
-      sourceURL == "discord.android.bundle" ||
+  ::hermes::hermesLog("AliuHermes", "Evaluating bundle from %s", sourceURL.c_str());
+
+  auto isMainBundle = 
+      sourceURL.find(".android.bundle") != std::string::npos ||
       sourceURL.find("main.jsbundle") != std::string::npos;
 
   if (isMainBundle) {
