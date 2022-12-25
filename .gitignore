@@ -29,6 +29,10 @@ test/ApplePlatformsIntegrationTestApp/ApplePlatformsIntegrationTestApp.xcworkspa
 android/intltest/java/com/facebook/hermes/test/assets/**
 .cache
 
+# VS Code and Visual Studio
+.vs
+.vscode
+
 # Aliucord
 .idea
 cmake-build-debug

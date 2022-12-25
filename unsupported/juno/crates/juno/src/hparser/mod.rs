@@ -8,17 +8,21 @@
 mod convert;
 mod generated_cvt;
 
-use crate::ast;
+use std::fmt::Formatter;
+
 use convert::Converter;
 use generated_cvt::cvt_node_ptr;
-use hermes::parser::{HermesParser, NodePtr};
+use hermes::parser::HermesParser;
+pub use hermes::parser::MagicCommentKind;
+use hermes::parser::NodePtr;
+pub use hermes::parser::ParserDialect;
+pub use hermes::parser::ParserFlags;
 use hermes::utf::utf8_with_surrogates_to_string_lossy;
 use juno_support::source_manager::SourceId;
 use juno_support::NullTerminatedBuf;
-use std::fmt::Formatter;
 use thiserror::Error;
 
-pub use hermes::parser::{MagicCommentKind, ParserDialect, ParserFlags};
+use crate::ast;
 
 pub struct ParsedJS<'a> {
     parser: HermesParser<'a>,
@@ -36,6 +40,11 @@ impl<'parser> ParsedJS<'parser> {
     /// Return true if there is at least one parser error (implying there is no AST).
     pub fn has_errors(&self) -> bool {
         self.parser.has_errors()
+    }
+
+    /// Return the doc block at the top of the file if it exists.
+    pub fn get_doc_block(&self) -> Option<&str> {
+        self.parser.get_doc_block()
     }
 
     /// Return the last magic comment of the specified type (each comment overrides the previous
