@@ -560,9 +560,9 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
 
   // "Forward declaration" of ZipFile.prototype. Its properties will be
   // populated later.
-  runtime->zipFilePrototype =
+  runtime.zipFilePrototype =
       JSObject::create(
-          runtime, Handle<JSObject>::vmcast(&runtime->objectPrototype))
+          runtime, Handle<JSObject>::vmcast(&runtime.objectPrototype))
           .getHermesValue();
 
   // Object constructor.
@@ -712,16 +712,16 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
       createHermesInternalObject(runtime, jsLibFlags)));
 
   // AliuHermes - Define the global AliuHermes object.
-  runtime->ignoreAllocationFailure(JSObject::defineOwnProperty(
-      runtime->getGlobal(),
+  runtime.ignoreAllocationFailure(JSObject::defineOwnProperty(
+      runtime.getGlobal(),
       runtime,
       Predefined::getSymbolID(Predefined::AliuHermes),
       constantDPF,
       createAliuHermesObject(runtime, jsLibFlags)));
 
   // AliuHermes - Define the global AliuFS object.
-  runtime->ignoreAllocationFailure(JSObject::defineOwnProperty(
-      runtime->getGlobal(),
+  runtime.ignoreAllocationFailure(JSObject::defineOwnProperty(
+      runtime.getGlobal(),
       runtime,
       Predefined::getSymbolID(Predefined::AliuFS),
       constantDPF,

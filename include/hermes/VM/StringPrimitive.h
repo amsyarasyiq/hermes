@@ -294,6 +294,11 @@ class StringPrimitive : public VariableSizeRuntimeCell {
     return llvh::ArrayRef<T>{castToPointer<T>(), getStringLength()};
   }
 
+  // Get native string from a JS string
+  std::string toString(
+      Runtime &runtime,
+      Handle<StringPrimitive> handle);
+
  private:
   /// Similar to appendUTF16String(SmallVectorImpl), copy the string into
   /// a raw pointer \p ptr. Since there is no size check, this function should

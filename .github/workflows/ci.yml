@@ -20,20 +20,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build
 
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@4bcd0c14065d24d92f5e937fae51361c64048b46
-        with:
-          key: android
-
       - name: Build compiler
         run: |
-          utils/build/configure.py ./build
-          cmake --build ./build --target hermesc
+          cmake -S . -B build -G Ninja
+          cmake --build ./build --config Release --target hermesc
 
       - name: Build hermes for android
         run: |
           cd android
-          HERMES_WS_DIR=.. ./gradlew cppruntime:assembleRelease hermes:assembleIntlRelease
+          HERMES_WS_DIR=.. ./gradlew :cppruntime:assembleRelease :hermes:assembleIntlRelease
 
       - uses: actions/upload-artifact@v3
         with:
