@@ -35,4 +35,5 @@ android/intltest/java/com/facebook/hermes/test/assets/**
 
 # Aliucord
 .idea
+**/local.properties
 /cmake-build*/
