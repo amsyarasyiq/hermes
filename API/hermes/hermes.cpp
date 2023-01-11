@@ -1458,7 +1458,7 @@ jsi::Value HermesRuntimeImpl::evaluateJavaScript(
 
     std::string bootstrap;
 
-    if (access(bootstrapPath.c_str(), F_OK) == 0) {
+    if (access(bootstrapPath.c_str(), F_OK | R_OK) == 0) {
       ::hermes::hermesLog(
           "AliuHermes",
           "Loading bootstrap from external %s",
