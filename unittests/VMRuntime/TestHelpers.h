@@ -11,7 +11,6 @@
 #include "hermes/BCGen/HBC/BytecodeGenerator.h"
 #include "hermes/BCGen/HBC/BytecodeProviderFromSrc.h"
 #include "hermes/Public/GCConfig.h"
-#include "hermes/Public/JSOutOfMemoryError.h"
 #include "hermes/Public/RuntimeConfig.h"
 #include "hermes/VM/Callable.h"
 #include "hermes/VM/CodeBlock.h"
@@ -39,8 +38,10 @@ static constexpr uint32_t kInitHeapLarge = 1 << 20;
 static constexpr uint32_t kMaxHeapLarge = 1 << 24;
 
 static const GCConfig::Builder kTestGCConfigBaseBuilder =
-    GCConfig::Builder().withSanitizeConfig(
-        vm::GCSanitizeConfig::Builder().withSanitizeRate(0.0).build());
+    GCConfig::Builder()
+        .withSanitizeConfig(
+            vm::GCSanitizeConfig::Builder().withSanitizeRate(0.0).build())
+        .withShouldRandomizeAllocSpace(false);
 
 static const GCConfig kTestGCConfigSmall =
     GCConfig::Builder(kTestGCConfigBaseBuilder)
@@ -257,9 +258,9 @@ inline HermesValue operator"" _hd(long double d) {
 }
 
 /// A minimal Runtime for GC tests.
-class HERMES_EMPTY_BASES DummyRuntime final : public HandleRootOwner,
-                                              public PointerBase,
-                                              private GCBase::GCCallbacks {
+class DummyRuntime final : public HandleRootOwner,
+                           public PointerBase,
+                           private GCBase::GCCallbacks {
  private:
   GCStorage gcStorage_;
 

@@ -29,7 +29,6 @@
 #include "hermes/VM/PointerBase.h"
 #include "hermes/VM/Predefined.h"
 #include "hermes/VM/Profiler.h"
-#include "hermes/VM/Profiler/SamplingProfilerDefs.h"
 #include "hermes/VM/PropertyCache.h"
 #include "hermes/VM/PropertyDescriptor.h"
 #include "hermes/VM/RegExpMatch.h"
@@ -37,7 +36,6 @@
 #include "hermes/VM/StackFrame.h"
 #include "hermes/VM/StackTracesTree-NoRuntime.h"
 #include "hermes/VM/SymbolRegistry.h"
-#include "hermes/VM/TimeLimitMonitor.h"
 #include "hermes/VM/TwineChar16.h"
 #include "hermes/VM/VMExperiments.h"
 
@@ -82,13 +80,10 @@ struct RuntimeOffsets;
 class ScopedNativeDepthReducer;
 class ScopedNativeDepthTracker;
 class ScopedNativeCallFrame;
+class SamplingProfiler;
 class CodeCoverageProfiler;
 struct MockedEnvironment;
 struct StackTracesTree;
-
-#if HERMESVM_SAMPLING_PROFILER_AVAILABLE
-class SamplingProfiler;
-#endif // HERMESVM_SAMPLING_PROFILER_AVAILABLE
 
 #ifdef HERMESVM_PROFILER_BB
 class JSArray;
@@ -101,6 +96,8 @@ static const unsigned STACK_RESERVE = 32;
 
 /// Type used to assign object unique integer identifiers.
 using ObjectID = uint32_t;
+
+using DestructionCallback = std::function<void(Runtime &)>;
 
 #define PROP_CACHE_IDS(V) V(RegExpLastIndex, Predefined::lastIndex)
 
@@ -196,9 +193,9 @@ using CrashTrace = CrashTraceNoop;
 
 /// The Runtime encapsulates the entire context of a VM. Multiple instances can
 /// exist and are completely independent from each other.
-class HERMES_EMPTY_BASES Runtime : public PointerBase,
-                                   public HandleRootOwner,
-                                   private GCBase::GCCallbacks {
+class Runtime : public PointerBase,
+                public HandleRootOwner,
+                private GCBase::GCCallbacks {
  public:
   static std::shared_ptr<Runtime> create(const RuntimeConfig &runtimeConfig);
 
@@ -562,6 +559,13 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
       JSObject *proto,
       unsigned reservedSlots);
 
+  /// Same as above but returns a raw pointer: standard warnings apply!
+  /// TODO: Delete this function once all callers are replaced with
+  /// getHiddenClassForPrototype.
+  inline HiddenClass *getHiddenClassForPrototypeRaw(
+      JSObject *proto,
+      unsigned reservedSlots);
+
   /// Return the global object.
   Handle<JSObject> getGlobal();
 
@@ -611,6 +615,12 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
     triggerAsyncBreak(AsyncBreakReasonBits::Timeout);
   }
 
+  /// Register \p callback which will be called
+  /// during runtime destruction.
+  void registerDestructionCallback(DestructionCallback callback) {
+    destructionCallbacks_.emplace_back(callback);
+  }
+
 #ifdef HERMES_ENABLE_DEBUGGER
   /// Encapsulates useful information about a stack frame, needed by the
   /// debugger. It requres extra context and cannot be extracted from a
@@ -635,11 +645,6 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
   uint32_t getCurrentFrameOffset() const;
 #endif
 
-  /// Flag the interpreter that an error with the specified \p msg must be
-  /// thrown when execution resumes.
-  /// \return ExecutionResult::EXCEPTION
-  LLVM_NODISCARD ExecutionStatus raiseError(const TwineChar16 &msg);
-
   /// Flag the interpreter that a type error with the specified message must be
   /// thrown when execution resumes.
   /// If the message is not a string, it is converted using toString().
@@ -663,16 +668,9 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
   /// resumes. The string thrown concatenates \p msg1, a description of \p
   /// value, and \p msg2. \return ExecutionResult::EXCEPTION
   LLVM_NODISCARD ExecutionStatus raiseTypeErrorForValue(
-      const TwineChar16 &msg1,
+      llvh::StringRef msg1,
       Handle<> value,
-      const TwineChar16 &msg2);
-
-  /// Flag the interpreter that a type error must be thrown when execution
-  /// resumes. The string thrown concatenates either the textified callable for
-  /// \p callable (if it is available) with " is not a function"; or a
-  /// description of \p callable with " is not a function". \return
-  /// ExecutionResult::EXCEPTION
-  LLVM_NODISCARD ExecutionStatus raiseTypeErrorForCallable(Handle<> callable);
+      llvh::StringRef msg2);
 
   /// Flag the interpreter that a syntax error must be thrown.
   /// \return ExecutionStatus::EXCEPTION
@@ -789,7 +787,7 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
   void dumpOpcodeStats(llvh::raw_ostream &os) const;
 #endif
 
-#if defined(HERMESVM_PROFILER_JSFUNCTION)
+#if defined(HERMESVM_PROFILER_JSFUNCTION) || defined(HERMESVM_PROFILER_EXTERN)
   static std::atomic<ProfilerID> nextProfilerId;
 
   std::vector<ProfilerFunctionInfo> functionInfo{};
@@ -827,14 +825,9 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
     return *codeCoverageProfiler_;
   }
 
-#if HERMESVM_SAMPLING_PROFILER_AVAILABLE
   /// Sampling profiler data for this runtime. The ctor/dtor of SamplingProfiler
   /// will automatically register/unregister this runtime from profiling.
   std::unique_ptr<SamplingProfiler> samplingProfiler;
-#endif // HERMESVM_SAMPLING_PROFILER_AVAILABLE
-
-  /// Time limit monitor data for this runtime.
-  std::shared_ptr<TimeLimitMonitor> timeLimitMonitor;
 
 #ifdef HERMESVM_PROFILER_NATIVECALL
   /// Dump statistics about native calls.
@@ -966,7 +959,11 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
   void getInlineCacheProfilerInfo(llvh::raw_ostream &ostream);
 #endif
 
+#if defined(HERMESVM_PROFILER_EXTERN)
+ public:
+#else
  private:
+#endif
   /// Only called internally or by the wrappers used for profiling.
   CallResult<HermesValue> interpretFunctionImpl(CodeBlock *newCodeBlock);
 
@@ -1292,6 +1289,9 @@ class HERMES_EMPTY_BASES Runtime : public PointerBase,
 
   /// Pointer to the code coverage profiler.
   const std::unique_ptr<CodeCoverageProfiler> codeCoverageProfiler_;
+
+  /// A list of callbacks to call before runtime destruction.
+  std::vector<DestructionCallback> destructionCallbacks_;
 
   /// Bit flags for async break request reasons.
   enum class AsyncBreakReasonBits : uint8_t {

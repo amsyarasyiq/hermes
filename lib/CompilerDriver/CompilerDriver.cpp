@@ -107,14 +107,14 @@ class CLFlag {
         noName_((llvh::Twine(flagChar) + "no-" + name).str()),
         noHelp_(("Disable " + desc).str()),
         yes_(
-            llvh::StringRef(yesName_),
+            StringRef(yesName_),
             llvh::cl::ValueDisallowed,
-            llvh::cl::desc(llvh::StringRef(yesHelp_)),
+            llvh::cl::desc(StringRef(yesHelp_)),
             llvh::cl::cat(category)),
-        no_(llvh::StringRef(noName_),
+        no_(StringRef(noName_),
             llvh::cl::ValueDisallowed,
             llvh::cl::Hidden,
-            llvh::cl::desc(llvh::StringRef(noHelp_)),
+            llvh::cl::desc(StringRef(noHelp_)),
             llvh::cl::cat(category)),
         defaultValue_(defaultValue) {}
 
@@ -369,18 +369,6 @@ static opt<bool> OutputSourceMap(
 static opt<bool> DumpOperandRegisters(
     "dump-operand-registers",
     desc("Dump registers assigned to instruction operands"),
-    cat(CompilerCategory));
-
-static opt<bool> DumpSourceLevelScope(
-    "dump-source-level-scope",
-    desc("Print the instruction's source-level scope."),
-    init(false),
-    cat(CompilerCategory));
-
-static opt<bool> DumpTextifiedCallee(
-    "dump-textified-callee",
-    desc("Print the Call instruction's textified callee."),
-    init(false),
     cat(CompilerCategory));
 
 static opt<bool> DumpUseList(
@@ -1036,8 +1024,6 @@ std::shared_ptr<Context> createContext(
   CodeGenerationSettings codeGenOpts;
   codeGenOpts.enableTDZ = cl::EnableTDZ;
   codeGenOpts.dumpOperandRegisters = cl::DumpOperandRegisters;
-  codeGenOpts.dumpSourceLevelScope = cl::DumpSourceLevelScope;
-  codeGenOpts.dumpTextifiedCallee = cl::DumpTextifiedCallee;
   codeGenOpts.dumpUseList = cl::DumpUseList;
   codeGenOpts.dumpSourceLocation =
       cl::DumpSourceLocation != LocationDumpMode::None;
@@ -1708,15 +1694,9 @@ CompileResult generateBytecodeForExecution(
   std::shared_ptr<Context> context = M.shareContext();
   CompileResult result{Success};
   if (cl::BytecodeFormat == cl::BytecodeFormatKind::HBC) {
-    auto BM =
-        hbc::generateBytecodeModule(&M, M.getTopLevelFunction(), genOptions);
-    if (auto N = context->getSourceErrorManager().getErrorCount()) {
-      llvh::errs() << "Emitted " << N << " errors in the backend. exiting.\n";
-      return BackendError;
-    }
+    result.bytecodeProvider = hbc::BCProviderFromSrc::createBCProviderFromSrc(
+        hbc::generateBytecodeModule(&M, M.getTopLevelFunction(), genOptions));
 
-    result.bytecodeProvider =
-        hbc::BCProviderFromSrc::createBCProviderFromSrc(std::move(BM));
   } else {
     llvm_unreachable("Invalid bytecode kind for execution");
     result = InvalidFlags;
@@ -1754,11 +1734,6 @@ CompileResult generateBytecodeForSerialization(
         segment,
         sourceMapGenOrNull,
         std::move(baseBCProvider));
-
-    if (auto N = M.getContext().getSourceErrorManager().getErrorCount()) {
-      llvh::errs() << "Emitted " << N << " errors in the backend. exiting.\n";
-      return BackendError;
-    }
 
     if (cl::DumpTarget == DumpBytecode) {
       disassembleBytecode(hbc::BCProviderFromSrc::createBCProviderFromSrc(
@@ -1988,7 +1963,7 @@ CompileResult processSourceFiles(
   }
 
   CompileResult result{Success};
-  llvh::StringRef base = cl::BytecodeOutputFilename;
+  StringRef base = cl::BytecodeOutputFilename;
   if (context->getSegments().size() < 2) {
     OutputStream fileOS{llvh::outs()};
     if (!base.empty() && !fileOS.open(base, F_None)) {
@@ -2090,9 +2065,6 @@ void printHermesVersion(
     s << "  Features:\n"
 #ifdef HERMES_ENABLE_DEBUGGER
       << "    Debugger\n"
-#endif
-#ifdef HERMESVM_CONTIGUOUS_HEAP
-      << "    Contiguous Heap\n"
 #endif
       << "    Zip file input\n";
   }

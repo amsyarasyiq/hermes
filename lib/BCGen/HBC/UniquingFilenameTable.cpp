@@ -19,8 +19,7 @@ uint32_t UniquingFilenameTable::addFilename(llvh::StringRef filename) {
 /* static */ ConsecutiveStringStorage UniquingFilenameTable::toStorage(
     UniquingFilenameTable table) {
   auto &filenames = table.filenames_;
-  return ConsecutiveStringStorage{
-      filenames.begin(), filenames.end(), std::false_type{}, false};
+  return ConsecutiveStringStorage{filenames.begin(), filenames.end()};
 }
 
 } // namespace hbc

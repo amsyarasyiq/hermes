@@ -49,7 +49,6 @@ import type {
   JSXFragment,
   JSXIdentifier,
   JSXMemberExpression,
-  JSXNamespacedName,
   JSXOpeningElement,
   JSXTagNameExpression,
   LabeledStatement,
@@ -119,6 +118,9 @@ class Referencer extends Visitor {
   +_jsxPragma: string | null;
   +_jsxFragmentName: string | null;
   +_fbtSupport: boolean | null;
+  _hasReferencedJsxFactory = false;
+  _hasReferencedJsxFragmentFactory = false;
+
   +scopeManager: ScopeManager;
 
   constructor(
@@ -175,20 +177,44 @@ class Referencer extends Visitor {
     });
   }
 
+  /**
+   * Searches for a variable named "name" in the upper scopes and adds a pseudo-reference from itself to itself
+   */
+  _referenceInSomeUpperScope(name: string): boolean {
+    let scope = this.scopeManager.currentScope;
+    while (scope) {
+      const variable = scope.set.get(name);
+      if (!variable) {
+        scope = scope.upper;
+        continue;
+      }
+
+      scope.referenceValue(variable.identifiers[0]);
+      return true;
+    }
+
+    return false;
+  }
+
   _referenceJsxPragma(): void {
-    const jsxPragma = this._jsxPragma;
-    if (jsxPragma == null) {
+    if (this._jsxPragma == null || this._hasReferencedJsxFactory) {
       return;
     }
-    this.currentScope().indirectlyReferenceValue(jsxPragma);
+    this._hasReferencedJsxFactory = this._referenceInSomeUpperScope(
+      this._jsxPragma,
+    );
   }
 
   _referenceJsxFragment(): void {
-    const jsxFragmentName = this._jsxFragmentName;
-    if (jsxFragmentName == null) {
+    if (
+      this._jsxFragmentName == null ||
+      this._hasReferencedJsxFragmentFactory
+    ) {
       return;
     }
-    this.currentScope().indirectlyReferenceValue(jsxFragmentName);
+    this._hasReferencedJsxFragmentFactory = this._referenceInSomeUpperScope(
+      this._jsxFragmentName,
+    );
   }
 
   ///////////////////
@@ -556,12 +582,6 @@ class Referencer extends Visitor {
   JSXMemberExpression(node: JSXMemberExpression): void {
     this.visit(node.object);
     // we don't ever reference the property as it's always going to be a property on the thing
-  }
-
-  JSXNamespacedName(node: JSXNamespacedName): void {
-    this.visit(node.namespace);
-    // namespace:name
-    // the "name" doesn't reference a variable so it should be ignored, like a member expression
   }
 
   JSXOpeningElement(node: JSXOpeningElement): void {

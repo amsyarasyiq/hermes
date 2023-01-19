@@ -298,19 +298,8 @@ class JSArray final : public ArrayImpl {
 
   /// Create an instance of Array, with [[Prototype]] initialized with
   /// \p prototypeHandle, with capacity for \p capacity elements and actual size
-  /// \p length. Does not allocate the return object's property storage array.
-  static CallResult<Handle<JSArray>> createNoAllocPropStorage(
-      Runtime &runtime,
-      Handle<JSObject> prototypeHandle,
-      Handle<HiddenClass> classHandle,
-      size_type capacity = 0,
-      size_type length = 0);
-
-  /// Create an instance of Array, with [[Prototype]] initialized with
-  /// \p prototypeHandle, with capacity for \p capacity elements and actual size
-  /// \p length. It also allocates the return object's property storage array
-  /// to hold all properties in \p classHandle.
-  static CallResult<Handle<JSArray>> createAndAllocPropStorage(
+  /// \p length.
+  static CallResult<Handle<JSArray>> create(
       Runtime &runtime,
       Handle<JSObject> prototypeHandle,
       Handle<HiddenClass> classHandle,
@@ -322,7 +311,7 @@ class JSArray final : public ArrayImpl {
       Handle<JSObject> prototypeHandle,
       size_type capacity,
       size_type length) {
-    return createNoAllocPropStorage(
+    return create(
         runtime,
         prototypeHandle,
         *prototypeHandle == runtime.arrayPrototype.getObject()

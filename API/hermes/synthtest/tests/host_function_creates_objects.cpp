@@ -42,7 +42,7 @@ const char *hostFunctionCreatesObjectsTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:22",
+      "propID": 22,
       "propName": "foo",
       "value": "object:10"
     },
@@ -78,7 +78,7 @@ const char *hostFunctionCreatesObjectsTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 11,
-      "propID": "propIDTag:23",
+      "propID": 23,
       "propName": "a",
       "value": "string:30"
     },
@@ -92,7 +92,7 @@ const char *hostFunctionCreatesObjectsTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 11,
-      "propID": "propIDTag:24",
+      "propID": 24,
       "propName": "b",
       "value": "null:"
     },
@@ -117,7 +117,7 @@ const char *hostFunctionCreatesObjectsTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 12,
-      "propID": "propIDTag:23",
+      "propID": 23,
       "propName": "a",
       "value": "null:"
     },
@@ -125,7 +125,7 @@ const char *hostFunctionCreatesObjectsTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 12,
-      "propID": "propIDTag:24",
+      "propID": 24,
       "propName": "b",
       "value": "string:30"
     },

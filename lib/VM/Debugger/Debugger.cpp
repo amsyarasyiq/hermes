@@ -20,11 +20,7 @@
 #include "hermes/VM/RuntimeModule.h"
 #include "hermes/VM/StackFrame-inline.h"
 #include "hermes/VM/StringView.h"
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 #ifdef HERMES_ENABLE_DEBUGGER
 
 namespace hermes {
@@ -340,9 +336,7 @@ ExecutionStatus Debugger::debuggerLoop(
   MutableHandle<> evalResult{runtime_};
   // Keep the evalResult alive, even if all other handles are flushed.
   static constexpr unsigned KEEP_HANDLES = 1;
-#if HERMESVM_SAMPLING_PROFILER_AVAILABLE
   SuspendSamplingProfilerRAII ssp{runtime_, "debugger"};
-#endif // HERMESVM_SAMPLING_PROFILER_AVAILABLE
   while (true) {
     GCScopeMarkerRAII marker{runtime_};
     auto command = getNextCommand(
@@ -1149,12 +1143,7 @@ bool Debugger::resolveBreakpointLocation(Breakpoint &breakpoint) const {
            (start.col <= request.column && request.column <= end.col))) {
         // The code block probably contains the breakpoint we want to set.
         // First, we compile it.
-        if (LLVM_UNLIKELY(
-                codeBlock->lazyCompile(runtime_) ==
-                ExecutionStatus::EXCEPTION)) {
-          // TODO: how to better handle this?
-          runtime_.clearThrownValue();
-        }
+        codeBlock->lazyCompile(runtime_);
 
         // We've found the codeBlock at this level and expanded it,
         // so there's no point continuing the search.

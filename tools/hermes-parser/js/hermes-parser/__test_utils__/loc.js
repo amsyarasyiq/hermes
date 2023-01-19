@@ -10,7 +10,7 @@
 
 'use strict';
 
-import type {SourceLocation} from 'hermes-estree';
+import type {SourceLocation} from '../../hermes-estree/src/types';
 
 /**
  * Utility for quickly creating source locations inline.

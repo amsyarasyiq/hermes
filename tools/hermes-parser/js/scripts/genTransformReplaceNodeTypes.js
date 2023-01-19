@@ -19,7 +19,7 @@ we need codegen!
 */
 
 import {
-  GetHermesESTreeJSON,
+  HermesESTreeJSON,
   formatAndWriteDistArtifact,
   LITERAL_TYPES,
 } from './utils/scriptUtils';
@@ -27,7 +27,7 @@ import {
 const imports: Array<string> = [];
 const replaceSignatures: Array<string> = [];
 
-const nodes = GetHermesESTreeJSON().concat({name: 'Literal', arguments: []});
+const nodes = HermesESTreeJSON.concat({name: 'Literal', arguments: []});
 const signatureNames: Array<string> = [];
 for (const node of nodes) {
   if (LITERAL_TYPES.has(node.name)) {
@@ -60,6 +60,7 @@ export type TransformReplaceSignatures = ${signatureNames.join(' & ')};
 formatAndWriteDistArtifact({
   code: fileContents,
   package: 'hermes-transform',
-  file: 'generated/TransformReplaceSignatures.js.flow',
-  flow: 'strict-local',
+  filename: 'TransformReplaceSignatures.js.flow',
+  subdirSegments: ['generated'],
+  flow: 'strict',
 });

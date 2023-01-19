@@ -571,8 +571,8 @@ class StringTableBuilder {
   /// and end.  Note that we do not always copy the underlying string data so
   /// the resulting builder must not outlive these strings.  In delta
   /// optimizing mode, only new strings are added here and packed.
-  template <typename I, typename Force8Bit>
-  StringTableBuilder(I begin, I end, Force8Bit) {
+  template <typename I>
+  StringTableBuilder(I begin, I end) {
     // Generate and store a StringEntry for each string.
     // Remember the index of each string in our StringEntry, so that we can
     // later output the table in the correct order.
@@ -586,7 +586,7 @@ class StringTableBuilder {
       static_assert(sizeof(str.data()[0]) == 1, "strings must be UTF8");
       const unsigned char *begin = (const unsigned char *)str.data();
       const unsigned char *end = begin + str.size();
-      if (Force8Bit::value || isAllASCII(begin, end)) {
+      if (isAllASCII(begin, end)) {
         ArrayRef<unsigned char> astr(begin, end);
         asciiStrings_.emplace_back(index, astr);
       } else {
@@ -713,15 +713,14 @@ class StringTableBuilder {
 namespace hermes {
 namespace hbc {
 
-template <typename I, typename Force8Bit>
+template <typename I>
 ConsecutiveStringStorage::ConsecutiveStringStorage(
     I begin,
     I end,
-    Force8Bit,
     bool optimize) {
   // Prepare to build our string table.
   // Generate storage for our ASCII and u16 strings.
-  StringTableBuilder builder(begin, end, Force8Bit{});
+  StringTableBuilder builder(begin, end);
   std::vector<unsigned char> asciiStorage;
   std::vector<char16_t> u16Storage;
   builder.packIntoStorage(&asciiStorage, &u16Storage, optimize);
@@ -742,25 +741,16 @@ ConsecutiveStringStorage::ConsecutiveStringStorage(
 template ConsecutiveStringStorage::ConsecutiveStringStorage(
     StringSetVector::const_iterator begin,
     StringSetVector::const_iterator end,
-    std::false_type,
     bool optimize);
 
 template ConsecutiveStringStorage::ConsecutiveStringStorage(
     StringSetVector::iterator begin,
     StringSetVector::iterator end,
-    std::false_type,
     bool optimize);
 
 template ConsecutiveStringStorage::ConsecutiveStringStorage(
     ArrayRef<llvh::StringRef>::const_iterator begin,
     ArrayRef<llvh::StringRef>::const_iterator end,
-    std::false_type,
-    bool optimize);
-
-template ConsecutiveStringStorage::ConsecutiveStringStorage(
-    StringSetVector::const_iterator begin,
-    StringSetVector::const_iterator end,
-    std::true_type,
     bool optimize);
 
 uint32_t ConsecutiveStringStorage::getEntryHash(size_t i) const {
@@ -822,7 +812,7 @@ llvh::StringRef getStringFromEntry(
       offset + length <= storage.size() && offset + length >= offset &&
       "Invalid entry");
   if (!entry.isUTF16()) {
-    return llvh::StringRef{(const char *)storage.data() + offset, length};
+    return StringRef{(const char *)storage.data() + offset, length};
   } else {
     const char16_t *s =
         reinterpret_cast<const char16_t *>(storage.data() + offset);

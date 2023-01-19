@@ -19,11 +19,7 @@
 #include "llvh/Support/TrailingObjects.h"
 
 #include <type_traits>
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 namespace hermes {
 namespace vm {
 
@@ -1091,5 +1087,4 @@ inline bool StringPrimitive::isExternal() const {
 } // namespace vm
 } // namespace hermes
 
-#pragma GCC diagnostic pop
 #endif // HERMES_VM_STRINGPRIMITIVE_H

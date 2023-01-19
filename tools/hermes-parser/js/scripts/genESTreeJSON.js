@@ -12,12 +12,13 @@
 
 import type {ESTreeJSON} from './utils/scriptUtils';
 
-import {HermesESTreeJSONFile} from './utils/scriptUtils';
 import {execSync} from 'child_process';
 import fs from 'fs';
 import mkdirp from 'mkdirp';
 import path from 'path';
 
+const OUTPUT_DIR = path.resolve(__dirname, 'dist');
+const OUTPUT_FILE = path.resolve(OUTPUT_DIR, 'HermesESTreeJSON.json');
 const TEMPLATE_FILE = path.resolve(
   __dirname,
   'templates',
@@ -122,8 +123,8 @@ const formattedContents = execSync('prettier --parser=json', {
   input: JSON.stringify(cleanedJSON, null, 2),
 }).toString();
 
-mkdirp.sync(path.dirname(HermesESTreeJSONFile));
-fs.writeFileSync(HermesESTreeJSONFile, formattedContents);
+mkdirp.sync(OUTPUT_DIR);
+fs.writeFileSync(OUTPUT_FILE, formattedContents);
 
 function nullthrows<T>(arg: ?T): T {
   if (arg == null) {

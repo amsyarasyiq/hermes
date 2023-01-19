@@ -83,8 +83,3 @@ export function parse(
 }
 
 export type {ParserOptions} from './ParserOptions';
-export * from './traverse/SimpleTraverser';
-export * from './transform/SimpleTransform';
-export * from './traverse/getVisitorKeys';
-export * as astArrayMutationHelpers from './transform/astArrayMutationHelpers';
-export * as astNodeMutationHelpers from './transform/astNodeMutationHelpers';

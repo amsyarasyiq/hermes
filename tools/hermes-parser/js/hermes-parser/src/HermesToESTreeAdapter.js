@@ -150,9 +150,17 @@ export default class HermesToESTreeAdapter extends HermesASTAdapter {
 
   mapBigIntLiteral(node: HermesNode): HermesNode {
     const newNode = this.mapSimpleLiteral(node);
+    const bigint = node.bigint
+      // estree spec is to not have a trailing `n` on this property
+      // https://github.com/estree/estree/blob/db962bb417a97effcfe9892f87fbb93c81a68584/es2020.md#bigintliteral
+      .replace(/n$/, '')
+      // `BigInt` doesn't accept numeric separator and `bigint` property should not include numeric separator
+      .replace(/_/, '');
     return {
       ...newNode,
-      ...this.getBigIntLiteralValue(node.bigint),
+      // coerce the string to a bigint value if supported by the environment
+      value: typeof BigInt === 'function' ? BigInt(bigint) : null,
+      bigint,
     };
   }
 
@@ -185,10 +193,8 @@ export default class HermesToESTreeAdapter extends HermesASTAdapter {
   }
 
   mapBigIntLiteralTypeAnnotation(node: HermesNode): HermesNode {
-    return {
-      ...node,
-      ...this.getBigIntLiteralValue(node.raw),
-    };
+    node.value = null;
+    return node;
   }
 
   mapTemplateElement(node: HermesNode): HermesNode {

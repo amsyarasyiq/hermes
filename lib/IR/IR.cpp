@@ -61,13 +61,13 @@ void Value::destroy(Value *V) {
   }
 }
 
-llvh::StringRef Value::getKindStr() const {
+StringRef Value::getKindStr() const {
   switch (Kind) {
     default:
       llvm_unreachable("Invalid kind");
 #define DEF_VALUE(XX, PARENT) \
   case ValueKind::XX##Kind:   \
-    return llvh::StringRef(#XX);
+    return StringRef(#XX);
 #include "hermes/IR/ValueKinds.def"
   }
 }
@@ -143,26 +143,18 @@ bool Value::hasUser(Value *other) {
   return std::find(Users.begin(), Users.end(), other) != Users.end();
 }
 
-ScopeDesc::~ScopeDesc() {
-  for (ScopeDesc *inner : innerScopes_) {
-    Value::destroy(inner);
-  }
-
-  // Free all variables.
-  for (auto *v : variables_) {
-    Value::destroy(v);
-  }
+bool VariableScope::isGlobalScope() const {
+  return function_->isGlobalScope() && function_->getFunctionScope() == this;
 }
 
-bool ScopeDesc::isGlobalScope() const {
-  return function_->isGlobalScope() &&
-      function_->getFunctionScopeDesc() == this;
+ExternalScope::ExternalScope(Function *function, int32_t depth)
+    : VariableScope(ValueKind::ExternalScopeKind, function), depth_(depth) {
+  function->addExternalScope(this);
 }
 
 Function::Function(
     ValueKind kind,
     Module *parent,
-    ScopeDesc *scopeDesc,
     Identifier originalName,
     DefinitionKind definitionKind,
     bool strictMode,
@@ -173,14 +165,14 @@ Function::Function(
     : Value(kind),
       parent_(parent),
       isGlobal_(isGlobal),
-      scopeDesc_(scopeDesc),
+      externalScopes_(),
+      functionScope_(this),
       originalOrInferredName_(originalName),
       definitionKind_(definitionKind),
       strictMode_(strictMode),
       SourceRange(sourceRange),
       sourceVisibility_(sourceVisibility),
       internalName_(parent->deriveUniqueInternalName(originalName)) {
-  scopeDesc_->setFunction(this);
   if (insertBefore) {
     assert(insertBefore != this && "Cannot insert a function before itself!");
     assert(
@@ -201,6 +193,10 @@ Function::~Function() {
     Value::destroy(p);
   }
   Value::destroy(thisParameter);
+
+  // Free all external scopes.
+  for (auto *ES : externalScopes_)
+    Value::destroy(ES);
 }
 
 std::string Function::getDefinitionKindStr(bool isDescriptive) const {
@@ -262,8 +258,8 @@ BasicBlock::BasicBlock(Function *parent)
   Parent->addBlock(this);
 }
 
-void BasicBlock::dump(llvh::raw_ostream &os) const {
-  IRPrinter D(getParent()->getContext(), os);
+void BasicBlock::dump() {
+  IRPrinter D(getParent()->getContext(), llvh::outs());
   D.visit(*this);
 }
 
@@ -273,7 +269,7 @@ void BasicBlock::printAsOperand(llvh::raw_ostream &OS, bool) const {
   OS << "BB#" << std::to_string(Num);
 }
 
-void Instruction::dump(llvh::raw_ostream &os) const {
+void Instruction::dump(llvh::raw_ostream &os) {
   IRPrinter D(getParent()->getContext(), os);
   D.visit(*this);
 }
@@ -410,7 +406,7 @@ void Function::eraseFromParentNoDestroy() {
   getParent()->getFunctionList().remove(getIterator());
 }
 
-llvh::StringRef Instruction::getName() {
+StringRef Instruction::getName() {
   switch (getKind()) {
     default:
       llvm_unreachable("Invalid kind");
@@ -457,7 +453,7 @@ Parameter::Parameter(Function *parent, Identifier name)
 
 Variable::Variable(
     ValueKind k,
-    ScopeDesc *scope,
+    VariableScope *scope,
     DeclKind declKind,
     Identifier txt)
     : Value(k), declKind(declKind), text(txt), parent(scope) {
@@ -675,8 +671,8 @@ int Parameter::getIndexInParamList() const {
   llvm_unreachable("Cannot find parameter in the function");
 }
 
-void Function::dump(llvh::raw_ostream &os) const {
-  IRPrinter D(getParent()->getContext(), os);
+void Function::dump() {
+  IRPrinter D(getParent()->getContext(), llvh::outs());
   D.visit(*this);
 }
 
@@ -743,9 +739,10 @@ void Module::viewGraph() {
   }
 }
 
-void Module::dump(llvh::raw_ostream &os) const {
-  IRPrinter D(getContext(), os);
-  D.visit(*this);
+void Module::dump() {
+  for (auto &F : *this) {
+    F.dump();
+  }
 }
 
 LiteralNumber *Module::getLiteralNumber(double value) {

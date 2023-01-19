@@ -243,54 +243,19 @@ describe('Comments', () => {
          */
       `;
       expect(parse(source).docblock?.directives).toMatchInlineSnapshot(`
-        {
-          "bar": [
+        Object {
+          "bar": Array [
             "bar-value",
           ],
-          "empty": [
+          "empty": Array [
             "",
           ],
-          "foo": [
+          "foo": Array [
             "foo-value",
           ],
-          "multiple": [
+          "multiple": Array [
             "one",
             "two",
-          ],
-        }
-      `);
-    });
-
-    test('docblock - directives with "reserved" names shouldn\'t crash the parser', () => {
-      const source = `
-        /**
-         * @constructor
-         * @toString
-         * @toLocaleString
-         * @hasOwnProperty
-         * @valueOf
-         * @__proto__
-         */
-      `;
-      expect(parse(source).docblock?.directives).toMatchInlineSnapshot(`
-        {
-          "__proto__": [
-            "",
-          ],
-          "constructor": [
-            "",
-          ],
-          "hasOwnProperty": [
-            "",
-          ],
-          "toLocaleString": [
-            "",
-          ],
-          "toString": [
-            "",
-          ],
-          "valueOf": [
-            "",
           ],
         }
       `);

@@ -10,7 +10,8 @@
 
 import type {BaseNode, ESNode} from 'hermes-estree';
 
-import {astNodeMutationHelpers} from 'hermes-parser';
+import {getVisitorKeys, isNode} from './getVisitorKeys';
+import {SimpleTraverser} from './traverse/SimpleTraverser';
 
 export opaque type DetachedNode<+T> = T;
 export type MaybeDetachedNode<+T> = T | DetachedNode<T>;
@@ -63,7 +64,7 @@ export const asDetachedNode: {
 export function detachedProps<T: BaseNode>(
   parent: ?ESNode,
   props: $ReadOnly<$Partial<{...}>>,
-  config: DetachConfig = {},
+  config: DetachConfig = {...null},
 ): DetachedNode<T> {
   // $FlowExpectedError[incompatible-type]
   const detachedNode: DetachedNode<T> = {
@@ -130,17 +131,12 @@ export function detachedProps<T: BaseNode>(
 export function shallowCloneNode<T: ESNode>(
   node: T,
   newProps: $ReadOnly<$Partial<{...}>>,
-  config?: DetachConfig = {},
+  config?: DetachConfig = {...null},
 ): DetachedNode<T> {
-  return detachedProps(
-    null,
-    // $FlowFixMe[cannot-spread-interface]
-    {...node, ...newProps},
-    {
-      preserveLocation: config.preserveLocation ?? true,
-      originalNode: config.originalNode ?? node,
-    },
-  );
+  return detachedProps(null, (Object.assign({}, node, newProps): $FlowFixMe), {
+    preserveLocation: config.preserveLocation ?? true,
+    originalNode: config.originalNode ?? node,
+  });
 }
 
 /**
@@ -175,14 +171,31 @@ export function deepCloneNode<T: ESNode>(
 export function setParentPointersInDirectChildren(
   node: DetachedNode<ESNode>,
 ): void {
-  astNodeMutationHelpers.setParentPointersInDirectChildren(node);
+  for (const key of getVisitorKeys(node)) {
+    if (
+      isNode(
+        // $FlowExpectedError[prop-missing]
+        node[key],
+      )
+    ) {
+      node[key].parent = node;
+    } else if (Array.isArray(node[key])) {
+      for (const child of node[key]) {
+        child.parent = node;
+      }
+    }
+  }
 }
 
 /**
  * Traverses the entire subtree to ensure the parent pointers are set correctly
  */
-export function updateAllParentPointers(
-  node: ESNode | DetachedNode<ESNode>,
-): void {
-  astNodeMutationHelpers.updateAllParentPointers(node);
+export function updateAllParentPointers(node: ESNode | DetachedNode<ESNode>) {
+  SimpleTraverser.traverse(node, {
+    enter(node, parent) {
+      // $FlowExpectedError[cannot-write]
+      node.parent = parent;
+    },
+    leave() {},
+  });
 }

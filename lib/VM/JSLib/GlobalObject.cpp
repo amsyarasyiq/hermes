@@ -412,7 +412,13 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
 
   // "Forward declaration" of BigInt.prototype. Its properties will be
   // populated later.
-  runtime.bigintPrototype = JSObject::create(runtime).getHermesValue();
+  runtime.bigintPrototype =
+      runtime
+          .ignoreAllocationFailure(JSBigInt::create(
+              runtime,
+              BigIntPrimitive::fromSignedNoThrow(runtime, 0),
+              Handle<JSObject>::vmcast(&runtime.objectPrototype)))
+          .getHermesValue();
 
   // "Forward declaration" of Number.prototype. Its properties will be
   // populated later.
@@ -446,7 +452,7 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
   // populated later.
   runtime.arrayPrototype =
       runtime
-          .ignoreAllocationFailure(JSArray::createNoAllocPropStorage(
+          .ignoreAllocationFailure(JSArray::create(
               runtime,
               Handle<JSObject>::vmcast(&runtime.objectPrototype),
               JSArray::createClass(
@@ -459,12 +465,6 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
   runtime.arrayClass =
       JSArray::createClass(
           runtime, Handle<JSObject>::vmcast(&runtime.arrayPrototype))
-          .getHermesValue();
-
-  // Declare the regexp match object class.
-  runtime.regExpMatchClass =
-      JSRegExp::createMatchClass(
-          runtime, Handle<HiddenClass>::vmcast(&runtime.arrayClass))
           .getHermesValue();
 
   // "Forward declaration" of ArrayBuffer.prototype. Its properties will be
@@ -795,7 +795,8 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
 #ifdef HERMES_ENABLE_INTL
   // Define the global Intl object
   // TODO T65916424: Consider how we can move this somewhere more modular.
-  if (runtime.hasIntl()) {
+
+  if (LLVM_UNLIKELY(runtime.hasIntl())) {
     runtime.ignoreAllocationFailure(JSObject::defineOwnProperty(
         runtime.getGlobal(),
         runtime,

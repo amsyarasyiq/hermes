@@ -576,10 +576,6 @@ bool num_context_switches(long &voluntary, long &involuntary) {
   return true;
 }
 
-uint64_t process_id() {
-  return getpid();
-}
-
 // Platform-specific implementations of thread_id
 #if defined(__APPLE__) && defined(__MACH__)
 

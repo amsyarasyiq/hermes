@@ -13,16 +13,11 @@
 #include "hermes/VM/InternalProperty.h"
 #include "hermes/VM/JSArray.h"
 #include "hermes/VM/JSProxy.h"
-#include "hermes/VM/NativeState.h"
 #include "hermes/VM/Operations.h"
 #include "hermes/VM/PropertyAccessor.h"
 
 #include "llvh/ADT/SmallSet.h"
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 namespace hermes {
 namespace vm {
 
@@ -111,15 +106,6 @@ PseudoHandle<JSObject> JSObject::create(
   if (LLVM_UNLIKELY(
           obj->clazz_.getNonNull(runtime)->getHasIndexLikeProperties()))
     obj->flags_.fastIndexProperties = false;
-  return obj;
-}
-
-PseudoHandle<JSObject> JSObject::create(
-    Runtime &runtime,
-    Handle<JSObject> parentHandle,
-    Handle<HiddenClass> clazz) {
-  PseudoHandle<JSObject> obj = JSObject::create(runtime, clazz);
-  obj->parent_.set(runtime, parentHandle.get(), runtime.getHeap());
   return obj;
 }
 
@@ -2215,6 +2201,14 @@ CallResult<bool> JSObject::defineOwnComputedPrimitive(
       value = *curValueOrAccessor;
     }
 
+    // Update dpFlags to match the existing property flags.
+    dpFlags.setEnumerable = 1;
+    dpFlags.setWritable = 1;
+    dpFlags.setConfigurable = 1;
+    dpFlags.enumerable = updateStatus->second.enumerable;
+    dpFlags.writable = updateStatus->second.writable;
+    dpFlags.configurable = updateStatus->second.configurable;
+
     // Delete the existing indexed property.
     if (!deleteOwnIndexed(selfHandle, runtime, *arrayIndex)) {
       if (opFlags.getThrowOnError()) {
@@ -2224,15 +2218,9 @@ CallResult<bool> JSObject::defineOwnComputedPrimitive(
       return false;
     }
 
-    // Add the new named property. Call addOwnPropertyImpl directly, since the
-    // property must be added.
+    // Add the new named property.
     LAZY_TO_IDENTIFIER(runtime, nameValHandle, id);
-    if (LLVM_UNLIKELY(
-            addOwnPropertyImpl(
-                selfHandle, runtime, id, updateStatus->second, value) ==
-            ExecutionStatus::EXCEPTION))
-      return ExecutionStatus::EXCEPTION;
-    return true;
+    return addOwnProperty(selfHandle, runtime, id, dpFlags, value, opFlags);
   }
 
   /// Can we add new properties?
@@ -2324,25 +2312,6 @@ CallResult<bool> JSObject::defineOwnComputed(
       selfHandle, runtime, *converted, dpFlags, valueOrAccessor, opFlags);
 }
 
-std::string JSObject::getNameIfExists(PointerBase &base) {
-  // Try "displayName" first, if it is defined.
-  if (auto nameVal = tryGetNamedNoAlloc(
-          this, base, Predefined::getSymbolID(Predefined::displayName))) {
-    if (auto *name = dyn_vmcast<StringPrimitive>(nameVal->unboxToHV(base))) {
-      return converter(name);
-    }
-  }
-  // Next, use "name" if it is defined.
-  if (auto nameVal = tryGetNamedNoAlloc(
-          this, base, Predefined::getSymbolID(Predefined::name))) {
-    if (auto *name = dyn_vmcast<StringPrimitive>(nameVal->unboxToHV(base))) {
-      return converter(name);
-    }
-  }
-  // There is no other way to access the "name" property on an object.
-  return "";
-}
-
 #ifdef HERMES_MEMORY_INSTRUMENTATION
 std::string JSObject::getHeuristicTypeName(GC &gc) {
   PointerBase &base = gc.getPointerBase();
@@ -2421,6 +2390,25 @@ std::string JSObject::getHeuristicTypeName(GC &gc) {
   }
   name += ")";
   return name;
+}
+
+std::string JSObject::getNameIfExists(PointerBase &base) {
+  // Try "displayName" first, if it is defined.
+  if (auto nameVal = tryGetNamedNoAlloc(
+          this, base, Predefined::getSymbolID(Predefined::displayName))) {
+    if (auto *name = dyn_vmcast<StringPrimitive>(nameVal->unboxToHV(base))) {
+      return converter(name);
+    }
+  }
+  // Next, use "name" if it is defined.
+  if (auto nameVal = tryGetNamedNoAlloc(
+          this, base, Predefined::getSymbolID(Predefined::name))) {
+    if (auto *name = dyn_vmcast<StringPrimitive>(nameVal->unboxToHV(base))) {
+      return converter(name);
+    }
+  }
+  // There is no other way to access the "name" property on an object.
+  return "";
 }
 
 std::string JSObject::_snapshotNameImpl(GCCell *cell, GC &gc) {

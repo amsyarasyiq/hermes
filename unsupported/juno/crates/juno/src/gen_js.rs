@@ -5,22 +5,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use std::fmt;
-use std::io;
-use std::io::BufWriter;
-use std::io::Write;
-use std::rc::Rc;
-
+use crate::ast::*;
+use crate::sema::DeclKind;
+use crate::sema::Resolution;
+use crate::sema::SemContext;
 use juno_support::convert;
 use juno_support::source_manager::SourceLoc;
 use sourcemap::RawToken;
 use sourcemap::SourceMap;
 use sourcemap::SourceMapBuilder;
-
-use crate::ast::*;
-use crate::sema::DeclKind;
-use crate::sema::Resolution;
-use crate::sema::SemContext;
+use std::fmt;
+use std::io;
+use std::io::BufWriter;
+use std::io::Write;
+use std::rc::Rc;
 
 /// Options for JS generation.
 pub struct Opt<'s> {
@@ -2157,9 +2155,6 @@ impl GenJS<'_, '_> {
             Node::StringTypeAnnotation(_) => {
                 out_token!(self, node, "string");
             }
-            Node::BigIntTypeAnnotation(_) => {
-                out_token!(self, node, "bigint");
-            }
             Node::NumberTypeAnnotation(_) => {
                 out_token!(self, node, "number");
             }
@@ -3645,7 +3640,6 @@ impl GenJS<'_, '_> {
             Node::ExistsTypeAnnotation(_)
             | Node::EmptyTypeAnnotation(_)
             | Node::StringTypeAnnotation(_)
-            | Node::BigIntTypeAnnotation(_)
             | Node::NumberTypeAnnotation(_)
             | Node::StringLiteralTypeAnnotation(_)
             | Node::NumberLiteralTypeAnnotation(_)

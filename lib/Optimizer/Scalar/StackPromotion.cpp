@@ -17,7 +17,6 @@
 
 #include "llvh/ADT/DenseMap.h"
 #include "llvh/ADT/DenseSet.h"
-#include "llvh/ADT/SetVector.h"
 #include "llvh/Support/Debug.h"
 
 using namespace hermes;
@@ -158,34 +157,20 @@ void collectCapturedVariables(
 /// Find which captured variables in \p F need to be stored in the frame at
 /// each BasicBlock. \p capturedVariableUsage will be a map from  to set of
 /// required variables.
-/// When CreateFunctionInst with zero users is encountered, it is removed, and
-/// its Function is added to the set of potentially unreachable functions
-/// \p maybeUnreachableFuncs. The Function in question has no users in the end,
-/// it can be removed.
 void determineCapturedVariableUsage(
     Function *F,
     llvh::DenseMap<BasicBlock *, llvh::DenseSet<Variable *>>
-        &capturedVariableUsage,
-    llvh::SetVector<Function *> &maybeUnreachableFuncs) {
+        &capturedVariableUsage) {
   for (auto &BB : *F) {
     capturedVariableUsage.FindAndConstruct(&BB);
   }
 
   llvh::DenseSet<BasicBlock *> toPropagate;
-  IRBuilder::InstructionDestroyer destroyer{};
   for (auto &BB : *F) {
     for (auto &I : BB) {
       auto *create = llvh::dyn_cast<CreateFunctionInst>(&I);
       if (!create)
         continue;
-
-      /// If the create instruction has no users, it can be deleted. The
-      /// function itself becomes potentially unreachable.
-      if (!create->hasUsers()) {
-        destroyer.add(create);
-        maybeUnreachableFuncs.insert(create->getFunctionCode());
-        continue;
-      }
 
       llvh::DenseSet<Variable *> variables;
       collectCapturedVariables(variables, F, create->getFunctionCode());
@@ -224,23 +209,6 @@ struct StorePoint {
   StorePoint(BasicBlock *from, BasicBlock *to) : from(from), to(to) {}
 };
 
-/// Finds and returns the CreateScopeInst that materializes \p F's body scope.
-CreateScopeInst *getFunctionBodyScopeMaterialization(Function *F) {
-  for (BasicBlock &BB : *F) {
-    for (Instruction &I : BB) {
-      if (auto *csi = llvh::dyn_cast<CreateScopeInst>(&I)) {
-        assert(
-            csi->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
-            "unexpected ScopeDesc in CreateScopeInst");
-        return csi;
-      }
-    }
-  }
-
-  assert(false && "Function is missing body scope materialization");
-  return nullptr;
-}
-
 /// Promote captured variables until they're actually needed.
 // Here's an example of how it optimizes a captured variable:
 //
@@ -254,19 +222,16 @@ CreateScopeInst *getFunctionBodyScopeMaterialization(Function *F) {
 //   // Copy from stack to frame
 //   arr.map(function(x) { return x/max; });
 // }
-bool promoteVariables(
-    Function *F,
-    llvh::SetVector<Function *> &maybeUnreachableFuncs) {
+bool promoteVariables(Function *F) {
   bool changed = false;
 
   llvh::DenseMap<BasicBlock *, llvh::DenseSet<Variable *>>
       capturedVariableUsage;
-  determineCapturedVariableUsage(
-      F, capturedVariableUsage, maybeUnreachableFuncs);
+  determineCapturedVariableUsage(F, capturedVariableUsage);
 
   // Find variables that are currently not optimal.
   llvh::DenseSet<Variable *> needsOptimizing;
-  for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
+  for (auto *var : F->getFunctionScope()->getVariables()) {
     if (!hasExternalUses(var)) {
       // This variable isn't needed at all, it should be purely on the stack.
       needsOptimizing.insert(var);
@@ -290,9 +255,7 @@ bool promoteVariables(
   // need real variables. For uncaptured variables, this replaces all uses.
   IRBuilder builder(F);
   llvh::DenseMap<Variable *, AllocStackInst *> stackMap;
-  CreateScopeInst *csi = getFunctionBodyScopeMaterialization(F);
-
-  for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
+  for (auto *var : F->getFunctionScope()->getVariables()) {
     if (!needsOptimizing.count(var))
       continue;
     if (!var->getNumUsers())
@@ -374,7 +337,7 @@ bool promoteVariables(
     builder.setInsertionPoint(&*insertionPoint);
 
     // Loop over the set of common variables, but in a deterministic order.
-    for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
+    for (auto *var : F->getFunctionScope()->getVariables()) {
       if (!commons.count(var))
         continue;
       // It could have been the case that this block both initializes and
@@ -383,7 +346,7 @@ bool promoteVariables(
       // To avoid this case, the variable is always initialized to undefined so
       // that it's merely unnecessary, and will get optimized away.
       auto *value = builder.createLoadStackInst(stackMap[var]);
-      builder.createStoreFrameInst(value, var, csi);
+      builder.createStoreFrameInst(value, var);
       alreadyProcessed.insert(std::pair<BasicBlock *, Variable *>(&BB, var));
       changed = true;
     }
@@ -410,7 +373,7 @@ bool promoteVariables(
       auto &usedNext = capturedVariableUsage[next];
       StorePoint *point = nullptr;
 
-      for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
+      for (auto *var : F->getFunctionScope()->getVariables()) {
         if (!needsOptimizing.count(var))
           continue;
         // We only care about transitions, i.e. variables
@@ -436,33 +399,33 @@ bool promoteVariables(
     splitCriticalEdge(&builder, point.from, point.to);
     for (auto *var : point.variables) {
       auto *value = builder.createLoadStackInst(stackMap[var]);
-      builder.createStoreFrameInst(value, var, csi);
+      builder.createStoreFrameInst(value, var);
       changed = true;
     }
   }
   return changed;
 }
 
-bool runOnFunction(
-    Function *F,
-    llvh::SetVector<Function *> &maybeUnreachableFuncs) {
+} // namespace
+
+bool StackPromotion::runOnFunction(Function *F) {
   bool changed = false;
 
   LLVM_DEBUG(
       dbgs() << "Promoting variables in " << F->getInternalNameStr() << "\n");
   DominanceInfo DT(F);
 
-  for (auto *V : F->getFunctionScopeDesc()->getVariables()) {
+  for (auto *V : F->getFunctionScope()->getVariables()) {
     // Promote constant variables.
     if (Value *val = isStoreOnceVariable(V)) {
       promoteConstVariable(DT, V, F, val);
     }
   }
-  promoteVariables(F, maybeUnreachableFuncs);
+  promoteVariables(F);
 
   // Now that we've promoted some variables, remove the unused variables from
   // the list and destroy them.
-  auto &vars = F->getFunctionScopeDesc()->getMutableVariables();
+  auto &vars = F->getFunctionScope()->getVariables();
   vars.erase(
       std::remove_if(
           vars.begin(),
@@ -474,48 +437,6 @@ bool runOnFunction(
             return true;
           }),
       vars.end());
-
-  return changed;
-}
-
-} // namespace
-
-bool StackPromotion::runOnModule(Module *M) {
-  bool changed = false;
-  // Use a SetVector instead of just a set for efficient iteration.
-  llvh::SetVector<Function *> maybeUnreachableFuncs{};
-  for (Function &func : *M) {
-    Function *F = &func;
-    // Skip working on functions that have become unreachable.
-    if (maybeUnreachableFuncs.count(F) && !F->hasUsers())
-      continue;
-    changed |= runOnFunction(F, maybeUnreachableFuncs);
-  }
-
-  // Destroy all functions that became unreachable by examining all potentially
-  // unreachable functions and checking whether they have zero users.
-  //
-  // Unreachable functions should be destroyed, because stack promotion operates
-  // as if they already don't exist - specifically, it eliminates stores to
-  // frame variables that may be accessed by unreachable functions - which could
-  // make the IR inside the unreachable functions technically incorrect, even if
-  // it is never executed.
-  while (!maybeUnreachableFuncs.empty()) {
-    Function *F = maybeUnreachableFuncs.pop_back_val();
-    if (F->hasUsers())
-      continue;
-
-    // All functions created by this unreachable function are now potentially
-    // unreachable too.
-    for (auto &BB : *F) {
-      for (auto &I : BB) {
-        if (auto *CFI = llvh::dyn_cast<CreateFunctionInst>(&I))
-          maybeUnreachableFuncs.insert(CFI->getFunctionCode());
-      }
-    }
-    F->eraseFromParentNoDestroy();
-    Value::destroy(F);
-  }
 
   return changed;
 }

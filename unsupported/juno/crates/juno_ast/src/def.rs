@@ -361,7 +361,7 @@ macro_rules! nodekind_defs {
             },
             ExportNamedDeclaration[Declaration] {
                 declaration: Option<&'a Node<'a>>[Declaration, Identifier],
-                specifiers: NodeList<'a>[ExportSpecifier, ExportNamespaceSpecifier],
+                specifiers: NodeList<'a>[ExportSpecifier],
                 source: Option<&'a Node<'a>>[StringLiteral],
                 export_kind: ExportKind,
             },
@@ -452,7 +452,6 @@ macro_rules! nodekind_defs {
             ExistsTypeAnnotation[FlowType],
             EmptyTypeAnnotation[FlowType],
             StringTypeAnnotation[FlowType],
-            BigIntTypeAnnotation[FlowType],
             NumberTypeAnnotation[FlowType],
             BigIntLiteralTypeAnnotation[FlowType] {
                 raw: NodeLabel,

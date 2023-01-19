@@ -31,67 +31,68 @@ TracingRuntime::TracingRuntime(
       numPreambleRecords_(0) {}
 
 void TracingRuntime::replaceNondeterministicFuncs() {
-  // We trace non-deterministic functions by replacing them to call through a
-  // HostFunction instead. The call from the HostFunction to the original
-  // non-deterministic function is intentionally not traced. So the call and
-  // response get recorded as just a call to a HostFunction.
-  // This is a helper function to implement the above, it calls a given function
-  // without tracing, and returns the result.
-  jsi::Function callUntraced = jsi::Function::createFromHostFunction(
+  insertHostForwarder({"Math", "random"});
+  setupDate();
+  setUpWeakRef();
+
+  numPreambleRecords_ = trace_.records().size();
+}
+
+void TracingRuntime::insertHostForwarder(
+    const std::vector<const char *> &propertyPath) {
+  auto lenProp = walkPropertyPath(*runtime_, propertyPath)
+                     .getProperty(*runtime_, "length")
+                     .asNumber();
+  jsi::Function *funcPtr = saveFunction(propertyPath);
+
+  jsi::Function funcReplacement = jsi::Function::createFromHostFunction(
       *this,
-      jsi::PropNameID::forAscii(*this, "callUntraced"),
-      1,
-      [this](
+      jsi::PropNameID::forAscii(*this, propertyPath.back()),
+      lenProp,
+      [this, funcPtr](
           Runtime &rt,
           const jsi::Value &thisVal,
           const jsi::Value *args,
           size_t count) {
-        auto fun = args[0].getObject(*runtime_).getFunction(*runtime_);
-        return fun.call(*runtime_);
+        return thisVal.isObject()
+            ? funcPtr->callWithThis(
+                  *runtime_, thisVal.asObject(*runtime_), args, count)
+            : funcPtr->call(*runtime_, args, count);
       });
 
+  walkPropertyPath(*this, propertyPath, 1)
+      .setProperty(*this, propertyPath.back(), funcReplacement);
+}
+
+void TracingRuntime::setUpWeakRef() {
+  // WeakRef is not always defined.
+  if (runtime_->global().getProperty(*runtime_, "WeakRef").isUndefined())
+    return;
+  // The constructor, though deterministic, needs to be replaced as well. This
+  // is because the object that is returned from deref needs to have appeared in
+  // the synth trace before deref is called. Therefore, we simply insert a
+  // 'no-op' with the object as the parameter, so that the object returned from
+  // deref shows up in the trace.
+  jsi::Function nativeNoOp = jsi::Function::createFromHostFunction(
+      *this,
+      jsi::PropNameID::forAscii(*this, "WeakRef"),
+      0,
+      [](Runtime &rt,
+         const jsi::Value &thisVal,
+         const jsi::Value *args,
+         size_t count) { return jsi::Value::undefined(); });
   auto code = R"(
-(function(callUntraced){
-  var mathRandomReal = Math.random;
-  Math.random = function random() { return callUntraced(mathRandomReal); };
-
-  if(globalThis.WeakRef){
-    var WeakRefReal = globalThis.WeakRef;
-    function WeakRef(arg){
-      if (new.target){
-        // Make a dummy call so the arg is traced. This allows us to return it
-        // from calls to deref later.
-        callUntraced(() => {}, arg);
-        return new WeakRefReal(arg);
-      }
-      return WeakRefReal(arg);
+(function(nativeNoOp){
+  var WeakRefReal = WeakRef;
+  function WeakRefJSReplacement(arg){
+    if (new.target){
+      nativeNoOp(arg);
+      return new WeakRefReal(arg);
     }
-    WeakRef.prototype = WeakRefReal.prototype;
-    var derefReal = WeakRefReal.prototype.deref;
-    WeakRef.prototype.deref = function deref() { return callUntraced(derefReal.bind(this)); };
-    globalThis.WeakRef = WeakRef;
+    return WeakRefReal(arg);
   }
-
-  var DateReal = globalThis.Date;
-  var dateNowReal = DateReal.now;
-  var nativeDateNow = function now() { return callUntraced(dateNowReal); };
-  function Date(...args){
-    // Convert non-deterministic calls like `Date()` and `new Date()` into the
-    // deterministic form `new Date(Date.now())`, so they can be traced.
-    if(!new.target){
-      return new DateReal(nativeDateNow()).toString();
-    }
-    if (arguments.length == 0){
-      return new DateReal(nativeDateNow());
-    }
-    return new DateReal(...args);
-  }
-  // Cannot use Object.assign because Date methods are not enumerable
-  for (p of Object.getOwnPropertyNames(DateReal)){
-    Date[p] = DateReal[p];
-  }
-  Date.now = nativeDateNow;
-  globalThis.Date = Date;
+  WeakRefJSReplacement.prototype = WeakRefReal.prototype;
+  globalThis.WeakRef = WeakRefJSReplacement;
 });
 )";
   global()
@@ -99,9 +100,116 @@ void TracingRuntime::replaceNondeterministicFuncs() {
       .call(*this, code)
       .asObject(*this)
       .asFunction(*this)
-      .call(*this, {std::move(callUntraced)});
+      .call(*this, {std::move(nativeNoOp)});
+  insertHostForwarder({"WeakRef", "prototype", "deref"});
+}
 
-  numPreambleRecords_ = trace_.records().size();
+void TracingRuntime::setupDate() {
+  auto lenProp = walkPropertyPath(*runtime_, {"Date"})
+                     .getProperty(*runtime_, "length")
+                     .asNumber();
+  jsi::Function *origDateFunc = saveFunction({"Date"});
+
+  jsi::Function nativeDateCtor = jsi::Function::createFromHostFunction(
+      *this,
+      jsi::PropNameID::forAscii(*this, "Date"),
+      lenProp,
+      [this, origDateFunc](
+          Runtime &rt,
+          const jsi::Value &thisVal,
+          const jsi::Value *args,
+          size_t count) {
+        auto ret = origDateFunc->callAsConstructor(*runtime_);
+        // We cannot return this value here, because the trace would be
+        // invalid. `new Date()` returns an object, so returning it would mean
+        // returning an object that has never been defined. Therefore, we trace
+        // reconstructing a new Date with the argument being the getTime() value
+        // from the Date object created in the untraced runtime. Conceptually,
+        // we are transforming calls to the no-arg Date constructor:
+        // var myDate = new Date();
+        // -->
+        // var tmp = new Date();        <-- this is untraced
+        // var arg = tmp.getTime();     <-- this is untraced
+        // var myDate = new Date(arg);  <-- this is traced
+        auto obj = ret.asObject(*runtime_);
+        auto val = obj.getPropertyAsFunction(*runtime_, "getTime")
+                       .callWithThis(*runtime_, obj);
+        return this->global()
+            .getPropertyAsFunction(*this, "Date")
+            .callAsConstructor(*this, val);
+      });
+
+  jsi::Function nativeDateFunc = jsi::Function::createFromHostFunction(
+      *this,
+      jsi::PropNameID::forAscii(*this, "Date"),
+      lenProp,
+      [this, origDateFunc](
+          Runtime &rt,
+          const jsi::Value &thisVal,
+          const jsi::Value *args,
+          size_t count) {
+        auto ret = origDateFunc->call(*runtime_, args, count);
+        std::string retStr = ret.asString(*runtime_).utf8(*runtime_);
+        // If we just returned the string directly from the above call, the
+        // trace would not be valid because we would be using a string that has
+        // never been defined before. Therefore, we must copy the string in the
+        // tracing runtime to get this string to show up and be defined in the
+        // trace.
+        return jsi::String::createFromAscii(*this, retStr);
+      });
+
+  auto code = R"(
+(function(nativeDateCtor, nativeDateFunc){
+  var DateReal = Date;
+  function DateJSReplacement(...args){
+    if (new.target){
+      if (arguments.length == 0){
+        return nativeDateCtor();
+      } else {
+        // calling new Date with arguments is deterministic
+        return new DateReal(...args);
+      }
+    } else {
+      return nativeDateFunc(...args);
+    }
+  }
+  // Cannot use Object.assign because Date methods are not enumerable
+  for (p of Object.getOwnPropertyNames(DateReal)){
+    DateJSReplacement[p] = DateReal[p];
+  }
+  globalThis.Date = DateJSReplacement;
+});
+)";
+  global()
+      .getPropertyAsFunction(*this, "eval")
+      .call(*this, code)
+      .asObject(*this)
+      .asFunction(*this)
+      .call(*this, {std::move(nativeDateCtor), std::move(nativeDateFunc)});
+  insertHostForwarder({"Date", "now"});
+}
+
+jsi::Function *TracingRuntime::saveFunction(
+    const std::vector<const char *> &propertyPath) {
+  jsi::Function origFunc =
+      walkPropertyPath(*runtime_, propertyPath).asFunction(*runtime_);
+  savedFunctions.push_back(std::move(origFunc));
+  return &savedFunctions.back();
+}
+
+jsi::Object TracingRuntime::walkPropertyPath(
+    jsi::Runtime &runtime,
+    const std::vector<const char *> &propertyPath,
+    size_t skipLastAmt) {
+  assert(
+      skipLastAmt <= propertyPath.size() &&
+      "skipLastAmt cannot be larger than length of property path");
+  jsi::Object obj = runtime.global();
+  for (auto e = propertyPath.begin(); e != propertyPath.end() - skipLastAmt;
+       e++) {
+    obj = obj.getPropertyAsObject(runtime, *e);
+  }
+  return obj;
 }
 
 jsi::Value TracingRuntime::evaluateJavaScript(
@@ -256,35 +364,6 @@ jsi::Object TracingRuntime::createObject(std::shared_ptr<jsi::HostObject> ho) {
   return obj;
 }
 
-jsi::BigInt TracingRuntime::createBigIntFromInt64(int64_t value) {
-  jsi::BigInt res = RD::createBigIntFromInt64(value);
-  trace_.emplace_back<SynthTrace::CreateBigIntRecord>(
-      getTimeSinceStart(),
-      getUniqueID(res),
-      SynthTrace::CreateBigIntRecord::Method::FromInt64,
-      value);
-  return res;
-}
-
-jsi::BigInt TracingRuntime::createBigIntFromUint64(uint64_t value) {
-  jsi::BigInt res = RD::createBigIntFromUint64(value);
-  trace_.emplace_back<SynthTrace::CreateBigIntRecord>(
-      getTimeSinceStart(),
-      getUniqueID(res),
-      SynthTrace::CreateBigIntRecord::Method::FromUint64,
-      value);
-  return res;
-}
-
-jsi::String TracingRuntime::bigintToString(
-    const jsi::BigInt &bigint,
-    int radix) {
-  jsi::String res = RD::bigintToString(bigint, radix);
-  trace_.emplace_back<SynthTrace::BigIntToStringRecord>(
-      getTimeSinceStart(), getUniqueID(res), getUniqueID(bigint), radix);
-  return res;
-}
-
 jsi::String TracingRuntime::createStringFromAscii(
     const char *str,
     size_t length) {
@@ -348,7 +427,7 @@ jsi::Value TracingRuntime::getProperty(
   trace_.emplace_back<SynthTrace::GetPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodeString(getUniqueID(name)),
+      getUniqueID(name),
 #ifdef HERMESVM_API_TRACE_DEBUG
       name.utf8(*this),
 #endif
@@ -363,7 +442,7 @@ jsi::Value TracingRuntime::getProperty(
   trace_.emplace_back<SynthTrace::GetPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodePropNameID(getUniqueID(name)),
+      getUniqueID(name),
 #ifdef HERMESVM_API_TRACE_DEBUG
       name.utf8(*this),
 #endif
@@ -377,7 +456,7 @@ bool TracingRuntime::hasProperty(
   trace_.emplace_back<SynthTrace::HasPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodeString(getUniqueID(name))
+      getUniqueID(name)
 #ifdef HERMESVM_API_TRACE_DEBUG
           ,
       name.utf8(*this)
@@ -392,7 +471,7 @@ bool TracingRuntime::hasProperty(
   trace_.emplace_back<SynthTrace::HasPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodePropNameID(getUniqueID(name))
+      getUniqueID(name)
 #ifdef HERMESVM_API_TRACE_DEBUG
           ,
       name.utf8(*this)
@@ -402,13 +481,13 @@ bool TracingRuntime::hasProperty(
 }
 
 void TracingRuntime::setPropertyValue(
-    const jsi::Object &obj,
+    jsi::Object &obj,
     const jsi::String &name,
     const jsi::Value &value) {
   trace_.emplace_back<SynthTrace::SetPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodeString(getUniqueID(name)),
+      getUniqueID(name),
 #ifdef HERMESVM_API_TRACE_DEBUG
       name.utf8(*this),
 #endif
@@ -417,13 +496,13 @@ void TracingRuntime::setPropertyValue(
 }
 
 void TracingRuntime::setPropertyValue(
-    const jsi::Object &obj,
+    jsi::Object &obj,
     const jsi::PropNameID &name,
     const jsi::Value &value) {
   trace_.emplace_back<SynthTrace::SetPropertyRecord>(
       getTimeSinceStart(),
       getUniqueID(obj),
-      SynthTrace::encodePropNameID(getUniqueID(name)),
+      getUniqueID(name),
 #ifdef HERMESVM_API_TRACE_DEBUG
       name.utf8(*this),
 #endif
@@ -462,7 +541,7 @@ jsi::WeakObject TracingRuntime::createWeakObject(const jsi::Object &o) {
   return RD::createWeakObject(o);
 }
 
-jsi::Value TracingRuntime::lockWeakObject(const jsi::WeakObject &wo) {
+jsi::Value TracingRuntime::lockWeakObject(jsi::WeakObject &wo) {
   // See comment in TracingRuntime::createWeakObject for why this function isn't
   // traced.
   return RD::lockWeakObject(wo);
@@ -473,11 +552,6 @@ jsi::Array TracingRuntime::createArray(size_t length) {
   trace_.emplace_back<SynthTrace::CreateArrayRecord>(
       getTimeSinceStart(), getUniqueID(arr), length);
   return arr;
-}
-
-jsi::ArrayBuffer TracingRuntime::createArrayBuffer(
-    std::shared_ptr<jsi::MutableBuffer> buffer) {
-  throw std::logic_error("Cannot create external ArrayBuffers in trace mode.");
 }
 
 size_t TracingRuntime::size(const jsi::Array &arr) {
@@ -505,7 +579,7 @@ jsi::Value TracingRuntime::getValueAtIndex(const jsi::Array &arr, size_t i) {
 }
 
 void TracingRuntime::setValueAtIndexImpl(
-    const jsi::Array &arr,
+    jsi::Array &arr,
     size_t i,
     const jsi::Value &value) {
   trace_.emplace_back<SynthTrace::ArrayWriteRecord>(
@@ -633,8 +707,6 @@ SynthTrace::TraceValue TracingRuntime::toTraceValue(const jsi::Value &value) {
     return SynthTrace::encodeBool(value.getBool());
   } else if (value.isNumber()) {
     return SynthTrace::encodeNumber(value.getNumber());
-  } else if (value.isBigInt()) {
-    return trace_.encodeBigInt(getUniqueID(value.getBigInt(*this)));
   } else if (value.isString()) {
     return trace_.encodeString(getUniqueID(value.getString(*this)));
   } else if (value.isObject()) {

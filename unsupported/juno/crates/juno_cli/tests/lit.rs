@@ -5,9 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use std::env;
-
 use assert_cmd::Command;
+use std::env;
 
 #[test]
 fn run_lit_tests() {

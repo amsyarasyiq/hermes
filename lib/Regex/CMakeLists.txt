@@ -5,7 +5,6 @@
 
 set(source_files
   RegexParser.cpp
-  RegexSerialization.cpp
   Executor.cpp
 )
 

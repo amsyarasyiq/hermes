@@ -5,16 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use std::collections::HashMap;
-
+use crate::ast::NodeRc;
 use juno_ast::node_cast;
 use juno_ast::GCLock;
 use juno_ast::Node;
 use juno_support::atom_table::Atom;
 use juno_support::declare_opaque_id;
 use juno_support::source_manager::SourceId;
-
-use crate::ast::NodeRc;
+use std::collections::HashMap;
 
 declare_opaque_id!(DeclId);
 declare_opaque_id!(LexicalScopeId);

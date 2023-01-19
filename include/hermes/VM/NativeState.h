@@ -47,10 +47,6 @@ class NativeState final : public GCCell {
     finalizePtr_(context_);
   }
 
-  void *context() {
-    return context_;
-  }
-
  private:
   static void _finalizeImpl(GCCell *cell, GC &gc);
 

@@ -75,5 +75,4 @@ module.exports = {
       },
     },
   ],
-  ignorePatterns: ['flow-typed', 'node_modules', 'dist', 'fixtures/'],
 };

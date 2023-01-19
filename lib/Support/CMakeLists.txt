@@ -5,6 +5,7 @@
 
 set(link_libs
     dtoa
+    hermesRegex
     hermesPlatformUnicode)
 
 if (ANDROID)
@@ -19,14 +20,14 @@ add_hermes_library(hermesSupport
         CheckedMalloc.cpp
         Conversions.cpp
         ErrorHandling.cpp
-        InternalIdentifierMaker.cpp
         JSONEmitter.cpp
         OSCompatEmscripten.cpp
         OSCompatPosix.cpp
         OSCompatWindows.cpp
         PageAccessTrackerPosix.cpp
         PerfSection.cpp
-        SemaphorePosix.cpp
+        RegExpSerialization.cpp
+        Semaphore.cpp
         SHA1.cpp
         SNPrintfBuf.cpp
         SourceErrorManager.cpp

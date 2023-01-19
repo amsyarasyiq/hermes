@@ -6,7 +6,6 @@
  */
 
 #include "hermes/Parser/JSLexer.h"
-#include "hermes/Platform/Unicode/CharacterProperties.h"
 
 #include "dtoa/dtoa.h"
 #include "hermes/Support/Conversions.h"
@@ -41,8 +40,8 @@ const char *tokenKindStr(TokenKind kind) {
 }
 
 #if HERMES_PARSE_JSX
-static llvh::DenseMap<llvh::StringRef, uint32_t> initializeHTMLEntities() {
-  llvh::DenseMap<llvh::StringRef, uint32_t> entities{};
+static llvh::DenseMap<StringRef, uint32_t> initializeHTMLEntities() {
+  llvh::DenseMap<StringRef, uint32_t> entities{};
 
 #define HTML_ENTITY(NAME, VALUE) \
   entities.insert({llvh::StringLiteral(#NAME), VALUE});
@@ -51,7 +50,7 @@ static llvh::DenseMap<llvh::StringRef, uint32_t> initializeHTMLEntities() {
   return entities;
 }
 
-static const llvh::DenseMap<llvh::StringRef, uint32_t> &getHTMLEntities() {
+static const llvh::DenseMap<StringRef, uint32_t> &getHTMLEntities() {
   static const auto entities = initializeHTMLEntities();
   return entities;
 }
@@ -545,7 +544,7 @@ const Token *JSLexer::advance(GrammarContext grammarContext) {
         token_.setStart(curCharPtr_);
         tmpStorage_.clear();
         uint32_t cp = consumeUnicodeEscape();
-        if (!isUnicodeIDStart(cp)) {
+        if (!isUnicodeIdentifierStart(cp)) {
           errorRange(
               token_.getStartLoc(),
               "Unicode escape \\u" + Twine::utohexstr(cp) +
@@ -748,7 +747,7 @@ llvh::Optional<uint32_t> JSLexer::consumeHTMLEntityOptional() {
     for (int i = 0; i < 9; i++) {
       char ch = *curCharPtr_;
       if (ch == ';') {
-        auto it = htmlEntities_.find(llvh::StringRef(curCharPtr_ - i, i));
+        auto it = htmlEntities_.find(StringRef(curCharPtr_ - i, i));
         if (it == htmlEntities_.end()) {
           break;
         }
@@ -1029,7 +1028,7 @@ bool JSLexer::consumeIdentifierStart() {
     SMLoc startLoc = SMLoc::getFromPointer(curCharPtr_);
     tmpStorage_.clear();
     uint32_t cp = consumeUnicodeEscape();
-    if (!isUnicodeIDStart(cp)) {
+    if (!isUnicodeIdentifierStart(cp)) {
       errorRange(
           startLoc,
           "Unicode escape \\u" + Twine::utohexstr(cp) +
@@ -1044,7 +1043,7 @@ bool JSLexer::consumeIdentifierStart() {
     return false;
 
   auto decoded = _peekUTF8();
-  if (isUnicodeIDStart(decoded.first)) {
+  if (isUnicodeIdentifierStart(decoded.first)) {
     tmpStorage_.clear();
     appendUnicodeToStorage(decoded.first);
     curCharPtr_ = decoded.second;
@@ -1067,7 +1066,7 @@ bool JSLexer::consumeOneIdentifierPartNoEscape() {
     // can be a part of the identifier, we consume it, otherwise we leave it
     // alone.
     auto decoded = _peekUTF8();
-    if (isUnicodeIDContinue(decoded.first)) {
+    if (isUnicodeIdentifierPart(decoded.first)) {
       appendUnicodeToStorage(decoded.first);
       curCharPtr_ = decoded.second;
       return true;
@@ -1087,7 +1086,7 @@ void JSLexer::consumeIdentifierParts() {
       // Decode the escape.
       SMLoc startLoc = SMLoc::getFromPointer(curCharPtr_);
       uint32_t cp = consumeUnicodeEscape();
-      if (!isUnicodeIDContinue(cp)) {
+      if (!isUnicodeIdentifierPart(cp)) {
         errorRange(
             startLoc,
             "Unicode escape \\u" + Twine::utohexstr(cp) +
@@ -1601,7 +1600,7 @@ end:
     if (curCharPtr_ == start) {
       errorRange(
           token_.getStartLoc(),
-          llvh::Twine("No digits after ") + llvh::StringRef(start - 2, 2));
+          llvh::Twine("No digits after ") + StringRef(start - 2, 2));
       val = std::numeric_limits<double>::quiet_NaN();
     } else {
       // Parse the rest of the number:
@@ -1630,7 +1629,7 @@ done:
 }
 
 static TokenKind matchReservedWord(const char *str, unsigned len) {
-  return llvh::StringSwitch<TokenKind>(llvh::StringRef(str, len))
+  return llvh::StringSwitch<TokenKind>(StringRef(str, len))
 #define RESWORD(name) .Case(#name, TokenKind::rw_##name)
 #include "hermes/Parser/TokenKinds.def"
       .Default(TokenKind::identifier);
@@ -1684,7 +1683,7 @@ void JSLexer::scanIdentifierFastPath(const char *start) {
     // can be a part of the identifier,
     // we consume it, otherwise we leave it alone.
     auto decoded = _peekUTF8(end);
-    if (isUnicodeIDContinue(decoded.first)) {
+    if (isUnicodeIdentifierPart(decoded.first)) {
       initStorageWith(start, end);
       appendUnicodeToStorage(decoded.first);
       curCharPtr_ = decoded.second;
@@ -1701,7 +1700,7 @@ void JSLexer::scanIdentifierFastPath(const char *start) {
   if (rw != TokenKind::identifier) {
     token_.setResWord(rw, resWordIdent(rw));
   } else {
-    token_.setIdentifier(getIdentifier(llvh::StringRef(start, length)));
+    token_.setIdentifier(getIdentifier(StringRef(start, length)));
   }
 }
 
@@ -2249,9 +2248,14 @@ exitLoop:
                               RegExpLiteral(body, flags));
 }
 
-UniqueString *JSLexer::convertSurrogatesInString(llvh::StringRef str) {
+UniqueString *JSLexer::convertSurrogatesInString(StringRef str) {
+  llvh::SmallVector<char16_t, 8> ustr;
+  ustr.reserve(str.size());
+  char16_t *ustrEnd =
+      convertUTF8WithSurrogatesToUTF16(ustr.data(), str.begin(), str.end());
   std::string output;
-  convertUTF8WithSurrogatesToUTF8WithReplacements(output, str);
+  convertUTF16ToUTF8WithReplacements(
+      output, llvh::makeArrayRef(ustr.data(), ustrEnd));
   return strTab_.getString(output);
 }
 

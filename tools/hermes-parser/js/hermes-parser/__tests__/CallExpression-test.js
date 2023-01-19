@@ -31,13 +31,13 @@ describe('CallExpression', () => {
 
   test('ESTree', () => {
     expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
+      Object {
+        "body": Array [
+          Object {
             "directive": null,
-            "expression": {
-              "arguments": [],
-              "callee": {
+            "expression": Object {
+              "arguments": Array [],
+              "callee": Object {
                 "name": "one",
                 "optional": false,
                 "type": "Identifier",
@@ -49,13 +49,13 @@ describe('CallExpression', () => {
             },
             "type": "ExpressionStatement",
           },
-          {
+          Object {
             "directive": null,
-            "expression": {
-              "arguments": [],
-              "callee": {
-                "arguments": [],
-                "callee": {
+            "expression": Object {
+              "arguments": Array [],
+              "callee": Object {
+                "arguments": Array [],
+                "callee": Object {
                   "name": "two",
                   "optional": false,
                   "type": "Identifier",
@@ -71,20 +71,20 @@ describe('CallExpression', () => {
             },
             "type": "ExpressionStatement",
           },
-          {
+          Object {
             "directive": null,
-            "expression": {
-              "arguments": [],
-              "callee": {
+            "expression": Object {
+              "arguments": Array [],
+              "callee": Object {
                 "computed": false,
-                "object": {
+                "object": Object {
                   "name": "three",
                   "optional": false,
                   "type": "Identifier",
                   "typeAnnotation": null,
                 },
                 "optional": false,
-                "property": {
+                "property": Object {
                   "name": "four",
                   "optional": false,
                   "type": "Identifier",
@@ -134,23 +134,23 @@ describe('OptionalCallExpression', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
+        Object {
+          "body": Array [
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
                       "typeAnnotation": null,
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -166,23 +166,23 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "name": "one",
                         "optional": false,
                         "type": "Identifier",
                         "typeAnnotation": null,
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "two",
                         "optional": false,
                         "type": "Identifier",
@@ -191,7 +191,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": false,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -207,23 +207,23 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "name": "one",
                         "optional": false,
                         "type": "Identifier",
                         "typeAnnotation": null,
                       },
                       "optional": false,
-                      "property": {
+                      "property": Object {
                         "name": "two",
                         "optional": false,
                         "type": "Identifier",
@@ -232,7 +232,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -248,25 +248,25 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "computed": false,
-                        "object": {
+                        "object": Object {
                           "name": "one",
                           "optional": false,
                           "type": "Identifier",
                           "typeAnnotation": null,
                         },
                         "optional": false,
-                        "property": {
+                        "property": Object {
                           "name": "two",
                           "optional": false,
                           "type": "Identifier",
@@ -275,7 +275,7 @@ describe('OptionalCallExpression', () => {
                         "type": "MemberExpression",
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "three",
                         "optional": false,
                         "type": "Identifier",
@@ -284,7 +284,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": false,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -300,25 +300,25 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "computed": false,
-                        "object": {
+                        "object": Object {
                           "name": "one",
                           "optional": false,
                           "type": "Identifier",
                           "typeAnnotation": null,
                         },
                         "optional": false,
-                        "property": {
+                        "property": Object {
                           "name": "two",
                           "optional": false,
                           "type": "Identifier",
@@ -327,7 +327,7 @@ describe('OptionalCallExpression', () => {
                         "type": "MemberExpression",
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "three",
                         "optional": false,
                         "type": "Identifier",
@@ -336,7 +336,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -352,12 +352,12 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "name": "one",
                     "optional": false,
                     "type": "Identifier",
@@ -371,14 +371,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
-                    "arguments": [],
-                    "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -396,14 +396,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
-                    "arguments": [],
-                    "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -421,14 +421,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
+              "expression": Object {
+                "expression": Object {
                   "computed": false,
-                  "object": {
-                    "arguments": [],
-                    "callee": {
+                  "object": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -439,7 +439,7 @@ describe('OptionalCallExpression', () => {
                     "typeArguments": null,
                   },
                   "optional": false,
-                  "property": {
+                  "property": Object {
                     "name": "two",
                     "optional": false,
                     "type": "Identifier",
@@ -485,23 +485,23 @@ describe('OptionalCallExpression', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
+        Object {
+          "body": Array [
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
                       "typeAnnotation": null,
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -517,23 +517,23 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "arguments": [],
-                "callee": {
+              "expression": Object {
+                "arguments": Array [],
+                "callee": Object {
                   "computed": false,
-                  "object": {
-                    "expression": {
+                  "object": Object {
+                    "expression": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "name": "one",
                         "optional": false,
                         "type": "Identifier",
                         "typeAnnotation": null,
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "two",
                         "optional": false,
                         "type": "Identifier",
@@ -544,7 +544,7 @@ describe('OptionalCallExpression', () => {
                     "type": "ChainExpression",
                   },
                   "optional": false,
-                  "property": {
+                  "property": Object {
                     "name": "fn",
                     "optional": false,
                     "type": "Identifier",
@@ -558,23 +558,23 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "name": "one",
                         "optional": false,
                         "type": "Identifier",
                         "typeAnnotation": null,
                       },
                       "optional": false,
-                      "property": {
+                      "property": Object {
                         "name": "two",
                         "optional": false,
                         "type": "Identifier",
@@ -583,7 +583,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -599,25 +599,25 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "arguments": [],
-                "callee": {
+              "expression": Object {
+                "arguments": Array [],
+                "callee": Object {
                   "computed": false,
-                  "object": {
-                    "expression": {
+                  "object": Object {
+                    "expression": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "computed": false,
-                        "object": {
+                        "object": Object {
                           "name": "one",
                           "optional": false,
                           "type": "Identifier",
                           "typeAnnotation": null,
                         },
                         "optional": false,
-                        "property": {
+                        "property": Object {
                           "name": "two",
                           "optional": false,
                           "type": "Identifier",
@@ -626,7 +626,7 @@ describe('OptionalCallExpression', () => {
                         "type": "MemberExpression",
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "three",
                         "optional": false,
                         "type": "Identifier",
@@ -637,7 +637,7 @@ describe('OptionalCallExpression', () => {
                     "type": "ChainExpression",
                   },
                   "optional": false,
-                  "property": {
+                  "property": Object {
                     "name": "fn",
                     "optional": false,
                     "type": "Identifier",
@@ -651,25 +651,25 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "computed": false,
-                    "object": {
+                    "object": Object {
                       "computed": false,
-                      "object": {
+                      "object": Object {
                         "computed": false,
-                        "object": {
+                        "object": Object {
                           "name": "one",
                           "optional": false,
                           "type": "Identifier",
                           "typeAnnotation": null,
                         },
                         "optional": false,
-                        "property": {
+                        "property": Object {
                           "name": "two",
                           "optional": false,
                           "type": "Identifier",
@@ -678,7 +678,7 @@ describe('OptionalCallExpression', () => {
                         "type": "MemberExpression",
                       },
                       "optional": true,
-                      "property": {
+                      "property": Object {
                         "name": "three",
                         "optional": false,
                         "type": "Identifier",
@@ -687,7 +687,7 @@ describe('OptionalCallExpression', () => {
                       "type": "MemberExpression",
                     },
                     "optional": true,
-                    "property": {
+                    "property": Object {
                       "name": "fn",
                       "optional": false,
                       "type": "Identifier",
@@ -703,12 +703,12 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
                     "name": "one",
                     "optional": false,
                     "type": "Identifier",
@@ -722,14 +722,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "arguments": [],
-                "callee": {
-                  "expression": {
-                    "arguments": [],
-                    "callee": {
+              "expression": Object {
+                "arguments": Array [],
+                "callee": Object {
+                  "expression": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -747,14 +747,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
+              "expression": Object {
                 "computed": false,
-                "object": {
-                  "expression": {
-                    "arguments": [],
-                    "callee": {
+                "object": Object {
+                  "expression": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -767,7 +767,7 @@ describe('OptionalCallExpression', () => {
                   "type": "ChainExpression",
                 },
                 "optional": false,
-                "property": {
+                "property": Object {
                   "name": "two",
                   "optional": false,
                   "type": "Identifier",
@@ -805,16 +805,16 @@ describe('OptionalCallExpression', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
+        Object {
+          "body": Array [
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
-                    "arguments": [],
-                    "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",
@@ -832,14 +832,14 @@ describe('OptionalCallExpression', () => {
               },
               "type": "ExpressionStatement",
             },
-            {
+            Object {
               "directive": null,
-              "expression": {
-                "expression": {
-                  "arguments": [],
-                  "callee": {
-                    "arguments": [],
-                    "callee": {
+              "expression": Object {
+                "expression": Object {
+                  "arguments": Array [],
+                  "callee": Object {
+                    "arguments": Array [],
+                    "callee": Object {
                       "name": "one",
                       "optional": false,
                       "type": "Identifier",

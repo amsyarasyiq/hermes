@@ -12,7 +12,7 @@ import type {TypeAnnotationType} from 'hermes-estree';
 
 import fs from 'fs';
 import path from 'path';
-import {GetHermesESTreeJSON} from '../scripts/utils/scriptUtils';
+import {HermesESTreeJSON} from '../scripts/utils/scriptUtils';
 import {parseForESLint} from 'hermes-eslint';
 import {traverse} from 'hermes-transform';
 
@@ -101,14 +101,11 @@ function getInterfaces(): $ReadOnlyMap<
 
 const typesThatShouldBeSkipped = new Set([
   // These types have a special union type declared to allow consumers to refine on `.computed`
-  'BinaryExpression',
-  'DeclareExportDeclaration',
-  'ExportNamedDeclaration',
-  'MemberExpression',
-  'MethodDefinition',
-  'ObjectTypeProperty',
-  'Property',
   'PropertyDefinition',
+  'MethodDefinition',
+  'MemberExpression',
+  'Property',
+  'BinaryExpression',
 ]);
 const propertiesThatShouldBeSkipped = new Map([
   [
@@ -168,7 +165,7 @@ const propertiesWithIncorrectOptionalFlagInHermes = new Map([
 describe('All nodes declared by hermes should have an interface in hermes-estree that is of the correct shape.', () => {
   const interfaces = getInterfaces();
 
-  for (const node of GetHermesESTreeJSON()) {
+  for (const node of HermesESTreeJSON) {
     if (typesThatShouldBeSkipped.has(node.name)) {
       describe.skip(node.name, () => {
         it.skip('was skipped due to being included in `typesThatShouldBeSkipped`', () => {});

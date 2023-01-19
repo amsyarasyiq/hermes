@@ -38,7 +38,6 @@ bool SwitchLowering::runOnFunction(Function *F) {
 void SwitchLowering::lowerSwitchIntoIfs(SwitchInst *switchInst) {
   IRBuilder builder(switchInst->getParent()->getParent());
   builder.setLocation(switchInst->getLocation());
-  builder.setCurrentSourceLevelScope(switchInst->getSourceLevelScope());
 
   BasicBlock *defaultDest = switchInst->getDefaultDestination();
   BasicBlock *next = defaultDest;
@@ -421,7 +420,6 @@ bool LowerAllocObject::lowerAllocObjectBuffer(
       // StoreNewOwnPropertyInst. Replace this instruction with
       // StorePropertyInst.
       builder.setLocation(I->getLocation());
-      builder.setCurrentSourceLevelScope(I->getSourceLevelScope());
       builder.setInsertionPoint(I);
       auto *NI = builder.createStorePropertyInst(
           I->getStoredValue(), I->getObject(), I->getProperty());
@@ -431,7 +429,6 @@ bool LowerAllocObject::lowerAllocObjectBuffer(
   }
 
   builder.setLocation(allocInst->getLocation());
-  builder.setCurrentSourceLevelScope(allocInst->getSourceLevelScope());
   builder.setInsertionPoint(allocInst);
   auto *alloc = builder.createHBCAllocObjectFromBufferInst(
       prop_map, allocInst->getSize());
@@ -465,7 +462,6 @@ bool LowerAllocObjectLiteral::lowerAlloc(AllocObjectLiteralInst *allocInst) {
 
   // Replace AllocObjectLiteral with a regular AllocObject
   builder.setLocation(allocInst->getLocation());
-  builder.setCurrentSourceLevelScope(allocInst->getSourceLevelScope());
   builder.setInsertionPoint(allocInst);
   auto *Obj = builder.createAllocObjectInst(size, nullptr);
 
@@ -532,7 +528,6 @@ bool LowerAllocObjectLiteral::lowerAllocObjectBuffer(
 
   // Replace AllocObjectLiteral with HBCAllocObjectFromBufferInst
   builder.setLocation(allocInst->getLocation());
-  builder.setCurrentSourceLevelScope(allocInst->getSourceLevelScope());
   builder.setInsertionPointAfter(allocInst);
   HBCAllocObjectFromBufferInst::ObjectPropertyMap propMap;
 
@@ -580,7 +575,6 @@ bool LowerAllocObjectLiteral::lowerAllocObjectBuffer(
   // Emit HBCAllocObjectFromBufferInst.
   // First, we reset insertion location.
   builder.setLocation(allocInst->getLocation());
-  builder.setCurrentSourceLevelScope(allocInst->getSourceLevelScope());
   builder.setInsertionPoint(allocInst);
   auto *alloc = builder.createHBCAllocObjectFromBufferInst(
       propMap, allocInst->getKeyValuePairCount());
@@ -680,7 +674,6 @@ bool LimitAllocArray::runOnFunction(Function *F) {
       IRBuilder builder(F);
       builder.setInsertionPointAfter(inst);
       builder.setLocation(inst->getLocation());
-      builder.setCurrentSourceLevelScope(inst->getSourceLevelScope());
 
       // Checks if any operand of an AllocArray is unserializable.
       // If it finds one, the loop removes it along with every operand past it.
@@ -787,7 +780,6 @@ bool LowerCondBranch::runOnFunction(Function *F) {
 
       builder.setInsertionPoint(cbInst);
       builder.setLocation(cbInst->getLocation());
-      builder.setCurrentSourceLevelScope(cbInst->getSourceLevelScope());
       auto *cmpBranch = builder.createCompareBranchInst(
           LHS,
           RHS,

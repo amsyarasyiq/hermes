@@ -288,15 +288,14 @@ bool LoadParameters::runOnFunction(Function *F) {
   return changed;
 }
 
-ScopeCreationInst *LowerLoadStoreFrameInst::getScope(
+Instruction *LowerLoadStoreFrameInst::getScope(
     IRBuilder &builder,
     Variable *var,
-    ScopeCreationInst *environment) {
+    HBCCreateEnvironmentInst *captureScope) {
   if (var->getParent()->getFunction() != builder.getFunction()) {
     // If the variable is neither from the current scope,
     // we should get the proper scope for it.
-    return builder.createHBCResolveEnvironment(
-        environment->getCreatedScopeDesc(), var->getParent());
+    return builder.createHBCResolveEnvironment(var->getParent());
   } else {
     // Now we know that the variable belongs to the current scope.
     // We are going to conservatively assume the variable might get
@@ -304,7 +303,7 @@ ScopeCreationInst *LowerLoadStoreFrameInst::getScope(
     // This will not cause performance issue as long as optimization
     // is enabled, because every variable will be moved to stack
     // if not being captured.
-    return environment;
+    return captureScope;
   }
 }
 
@@ -312,31 +311,18 @@ bool LowerLoadStoreFrameInst::runOnFunction(Function *F) {
   IRBuilder builder(F);
   bool changed = false;
 
-  bool fnScopeCreated = false;
-  for (BasicBlock &BB : F->getBasicBlockList()) {
-    for (auto I = BB.begin(), E = BB.end(); I != E; /* nothing */) {
-      Instruction *Inst = &*I;
-      ++I;
-      if (auto *csi = llvh::dyn_cast<CreateScopeInst>(Inst)) {
-        fnScopeCreated |=
-            csi->getCreatedScopeDesc() == F->getFunctionScopeDesc();
-        builder.setInsertionPoint(csi);
-        Instruction *llInst =
-            builder.createHBCCreateEnvironmentInst(csi->getCreatedScopeDesc());
-        Inst->replaceAllUsesWith(llInst);
-        Inst->eraseFromParent();
-        changed = true;
-      }
-    }
-  }
+  updateToEntryInsertionPoint(builder, F);
 
-  // At this point all scopes used in F should be materialized. However, not
-  // materializing F's scope potentially breaks lazy compilation as the compiler
-  // always assumes all "external" scopes (i.e., those that have already been
-  // compiled) have been materialized. Therefore, materialize the function scope
-  // now. This instruction will be optimized out if unused in optimized builds.
-  assert(fnScopeCreated && "Function body scope not materialized.");
-  (void)fnScopeCreated;
+  // All local captured variables will be stored in this scope (or
+  // "environment").
+  // It will also be used by all closures created in this function, even if
+  // there are no captured variables in this function.
+  // Closures need a new environment even without captured variables because
+  // we currently use only the lexical nesting level to determine which parent
+  // environment to use - we don't account for the case when an environment may
+  // not be needed somewhere along the chain.
+  HBCCreateEnvironmentInst *captureScope =
+      builder.createHBCCreateEnvironmentInst();
 
   for (BasicBlock &BB : F->getBasicBlockList()) {
     for (auto I = BB.begin(), E = BB.end(); I != E; /* nothing */) {
@@ -345,20 +331,14 @@ bool LowerLoadStoreFrameInst::runOnFunction(Function *F) {
       ++I;
 
       builder.setLocation(Inst->getLocation());
-      builder.setCurrentSourceLevelScope(Inst->getSourceLevelScope());
 
       switch (Inst->getKind()) {
         case ValueKind::LoadFrameInstKind: {
           auto *LFI = cast<LoadFrameInst>(Inst);
           auto *var = LFI->getLoadVariable();
-          auto *environment = LFI->getEnvironment();
 
           builder.setInsertionPoint(Inst);
-          assert(
-              llvh::isa<HBCCreateEnvironmentInst>(environment) &&
-              environment->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
-              "materializing the wrong scope");
-          ScopeCreationInst *scope = getScope(builder, var, environment);
+          Instruction *scope = getScope(builder, var, captureScope);
           Instruction *newInst =
               builder.createHBCLoadFromEnvironmentInst(scope, var);
 
@@ -371,14 +351,9 @@ bool LowerLoadStoreFrameInst::runOnFunction(Function *F) {
           auto *SFI = cast<StoreFrameInst>(Inst);
           auto *var = SFI->getVariable();
           auto *val = SFI->getValue();
-          auto *environment = SFI->getEnvironment();
 
           builder.setInsertionPoint(Inst);
-          assert(
-              llvh::isa<HBCCreateEnvironmentInst>(environment) &&
-              environment->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
-              "materializing the wrong scope");
-          ScopeCreationInst *scope = getScope(builder, var, environment);
+          Instruction *scope = getScope(builder, var, captureScope);
           builder.createHBCStoreToEnvironmentInst(scope, val, var);
 
           Inst->eraseFromParent();
@@ -387,15 +362,10 @@ bool LowerLoadStoreFrameInst::runOnFunction(Function *F) {
         }
         case ValueKind::CreateFunctionInstKind: {
           auto *CFI = cast<CreateFunctionInst>(Inst);
-          auto *environment = CFI->getEnvironment();
 
           builder.setInsertionPoint(Inst);
-          assert(
-              llvh::cast<HBCCreateEnvironmentInst>(environment)
-                      ->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
-              "materializing the wrong scope");
           auto *newInst = builder.createHBCCreateFunctionInst(
-              CFI->getFunctionCode(), environment);
+              CFI->getFunctionCode(), captureScope);
 
           Inst->replaceAllUsesWith(newInst);
           Inst->eraseFromParent();
@@ -404,15 +374,10 @@ bool LowerLoadStoreFrameInst::runOnFunction(Function *F) {
         }
         case ValueKind::CreateGeneratorInstKind: {
           auto *CFI = cast<CreateGeneratorInst>(Inst);
-          auto *environment = CFI->getEnvironment();
 
           builder.setInsertionPoint(Inst);
-          assert(
-              llvh::cast<HBCCreateEnvironmentInst>(environment)
-                      ->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
-              "materializing the wrong scope");
           auto *newInst = builder.createHBCCreateGeneratorInst(
-              CFI->getFunctionCode(), environment);
+              CFI->getFunctionCode(), captureScope);
 
           Inst->replaceAllUsesWith(newInst);
           Inst->eraseFromParent();
@@ -474,7 +439,6 @@ bool LowerArgumentsArray::runOnFunction(Function *F) {
     if (load && load->getObject() == createArguments) {
       builder.setInsertionPoint(load);
       builder.setLocation(load->getLocation());
-      builder.setCurrentSourceLevelScope(load->getSourceLevelScope());
       auto *propertyString = llvh::dyn_cast<LiteralString>(load->getProperty());
       if (propertyString && propertyString->getValue().str() == "length") {
         // For `arguments.length`, get the length.
@@ -526,7 +490,6 @@ bool LowerArgumentsArray::runOnFunction(Function *F) {
       // the usage with this array.
       builder.setInsertionPoint(inst);
       builder.setLocation(inst->getLocation());
-      builder.setCurrentSourceLevelScope(inst->getSourceLevelScope());
       builder.createHBCReifyArgumentsInst(lazyReg);
       auto *array = builder.createLoadStackInst(lazyReg);
       for (int i = 0, n = inst->getNumOperands(); i < n; i++) {
@@ -603,7 +566,6 @@ bool LowerConstruction::runOnFunction(Function *F) {
       if (auto *constructor = llvh::dyn_cast<ConstructInst>(&I)) {
         builder.setInsertionPoint(constructor);
         builder.setLocation(constructor->getLocation());
-        builder.setCurrentSourceLevelScope(constructor->getSourceLevelScope());
         auto closure = constructor->getCallee();
         auto prototype =
             builder.createLoadPropertyInst(closure, prototypeString);
@@ -811,7 +773,7 @@ bool SpillRegisters::requiresShortOperand(Instruction *I, int op) {
     case ValueKind::CallBuiltinInstKind:
     case ValueKind::HBCConstructInstKind:
     case ValueKind::HBCCallDirectInstKind:
-      return op == CallInst::CalleeIdx;
+      return op == 0;
     default:
       return true;
   }
@@ -841,7 +803,6 @@ bool SpillRegisters::runOnFunction(Function *F) {
       toSpill.clear();
       bool replaceWithFirstSpill = false;
       builder.setLocation(inst.getLocation());
-      builder.setCurrentSourceLevelScope(inst.getSourceLevelScope());
 
       auto myRegister = RA_.getRegister(&inst);
       if (requiresShortOutput(&inst) && !isShort(myRegister)) {

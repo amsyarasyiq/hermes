@@ -44,10 +44,8 @@ bool FuncCallNOpts::runOnFunction(Function *F) {
         if (HBCCallNInst::kMinArgs <= argCount &&
             argCount <= HBCCallNInst::kMaxArgs) {
           builder.setLocation(call->getLocation());
-          builder.setCurrentSourceLevelScope(call->getSourceLevelScope());
           builder.setInsertionPoint(call);
           HBCCallNInst *newCall = builder.createHBCCallNInst(
-              call->getTextifiedCallee(),
               call->getCallee(),
               call->getThis(),
               getArgumentsWithoutThis(call));

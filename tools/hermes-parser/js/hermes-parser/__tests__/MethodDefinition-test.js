@@ -33,14 +33,14 @@ describe('MethodDefinition', () => {
     test('ESTree', () => {
       // ESTree AST contains MethodDefinition containing a FunctionExpression value
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "body": {
-                "body": [
-                  {
+        Object {
+          "body": Array [
+            Object {
+              "body": Object {
+                "body": Array [
+                  Object {
                     "computed": false,
-                    "key": {
+                    "key": Object {
                       "name": "foo",
                       "optional": false,
                       "type": "Identifier",
@@ -49,16 +49,16 @@ describe('MethodDefinition', () => {
                     "kind": "method",
                     "static": false,
                     "type": "MethodDefinition",
-                    "value": {
+                    "value": Object {
                       "async": false,
-                      "body": {
-                        "body": [],
+                      "body": Object {
+                        "body": Array [],
                         "type": "BlockStatement",
                       },
                       "expression": false,
                       "generator": false,
                       "id": null,
-                      "params": [],
+                      "params": Array [],
                       "predicate": null,
                       "returnType": null,
                       "type": "FunctionExpression",
@@ -68,14 +68,14 @@ describe('MethodDefinition', () => {
                 ],
                 "type": "ClassBody",
               },
-              "decorators": [],
-              "id": {
+              "decorators": Array [],
+              "id": Object {
                 "name": "C",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "implements": [],
+              "implements": Array [],
               "superClass": null,
               "superTypeParameters": null,
               "type": "ClassDeclaration",
@@ -142,14 +142,14 @@ describe('MethodDefinition', () => {
     test('ESTree', () => {
       // ESTree AST contains MethodDefinition containing a FunctionExpression value
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "body": {
-                "body": [
-                  {
+        Object {
+          "body": Array [
+            Object {
+              "body": Object {
+                "body": Array [
+                  Object {
                     "computed": false,
-                    "key": {
+                    "key": Object {
                       "name": "constructor",
                       "optional": false,
                       "type": "Identifier",
@@ -158,16 +158,16 @@ describe('MethodDefinition', () => {
                     "kind": "constructor",
                     "static": false,
                     "type": "MethodDefinition",
-                    "value": {
+                    "value": Object {
                       "async": false,
-                      "body": {
-                        "body": [],
+                      "body": Object {
+                        "body": Array [],
                         "type": "BlockStatement",
                       },
                       "expression": false,
                       "generator": false,
                       "id": null,
-                      "params": [],
+                      "params": Array [],
                       "predicate": null,
                       "returnType": null,
                       "type": "FunctionExpression",
@@ -177,14 +177,14 @@ describe('MethodDefinition', () => {
                 ],
                 "type": "ClassBody",
               },
-              "decorators": [],
-              "id": {
+              "decorators": Array [],
+              "id": Object {
                 "name": "C",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "implements": [],
+              "implements": Array [],
               "superClass": null,
               "superTypeParameters": null,
               "type": "ClassDeclaration",
@@ -254,14 +254,14 @@ describe('MethodDefinition', () => {
     test('ESTree', () => {
       // ESTree AST contains MethodDefinition containing a FunctionExpression value
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "body": {
-                "body": [
-                  {
+        Object {
+          "body": Array [
+            Object {
+              "body": Object {
+                "body": Array [
+                  Object {
                     "computed": false,
-                    "key": {
+                    "key": Object {
                       "name": "foo",
                       "optional": false,
                       "type": "Identifier",
@@ -270,12 +270,12 @@ describe('MethodDefinition', () => {
                     "kind": "get",
                     "static": false,
                     "type": "MethodDefinition",
-                    "value": {
+                    "value": Object {
                       "async": false,
-                      "body": {
-                        "body": [
-                          {
-                            "argument": {
+                      "body": Object {
+                        "body": Array [
+                          Object {
+                            "argument": Object {
                               "literalType": "numeric",
                               "raw": "1",
                               "type": "Literal",
@@ -289,16 +289,16 @@ describe('MethodDefinition', () => {
                       "expression": false,
                       "generator": false,
                       "id": null,
-                      "params": [],
+                      "params": Array [],
                       "predicate": null,
                       "returnType": null,
                       "type": "FunctionExpression",
                       "typeParameters": null,
                     },
                   },
-                  {
+                  Object {
                     "computed": false,
-                    "key": {
+                    "key": Object {
                       "name": "foo",
                       "optional": false,
                       "type": "Identifier",
@@ -307,17 +307,17 @@ describe('MethodDefinition', () => {
                     "kind": "set",
                     "static": false,
                     "type": "MethodDefinition",
-                    "value": {
+                    "value": Object {
                       "async": false,
-                      "body": {
-                        "body": [],
+                      "body": Object {
+                        "body": Array [],
                         "type": "BlockStatement",
                       },
                       "expression": false,
                       "generator": false,
                       "id": null,
-                      "params": [
-                        {
+                      "params": Array [
+                        Object {
                           "name": "v",
                           "optional": false,
                           "type": "Identifier",
@@ -333,14 +333,14 @@ describe('MethodDefinition', () => {
                 ],
                 "type": "ClassBody",
               },
-              "decorators": [],
-              "id": {
+              "decorators": Array [],
+              "id": Object {
                 "name": "C",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "implements": [],
+              "implements": Array [],
               "superClass": null,
               "superTypeParameters": null,
               "type": "ClassDeclaration",

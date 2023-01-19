@@ -173,8 +173,7 @@ Optional<ESTree::Node *> JSParserImpl::parseTypeAliasFlow(
     right = *optRight;
   }
 
-  if (!eatSemi())
-    return None;
+  eatSemi(true);
 
   if (kind == TypeAliasKind::DeclareOpaque) {
     return setLocation(
@@ -1145,12 +1144,6 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryTypeAnnotationFlow() {
             advance(JSLexer::GrammarContext::Type).End,
             new (context_) ESTree::StringTypeAnnotationNode());
       }
-      if (tok_->getResWordOrIdentifier() == bigintIdent_) {
-        return setLocation(
-            start,
-            advance(JSLexer::GrammarContext::Type).End,
-            new (context_) ESTree::BigIntTypeAnnotationNode());
-      }
       if (tok_->getResWordOrIdentifier() == interfaceIdent_) {
         advance(JSLexer::GrammarContext::Type);
         ESTree::NodeList extends{};
@@ -1214,7 +1207,7 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryTypeAnnotationFlow() {
       if (check(TokenKind::numeric_literal)) {
         // Negate the literal.
         double value = -tok_->getNumericLiteral();
-        UniqueString *raw = lexer_.getStringLiteral(llvh::StringRef(
+        UniqueString *raw = lexer_.getStringLiteral(StringRef(
             start.getPointer(),
             tok_->getEndLoc().getPointer() - start.getPointer()));
         return setLocation(
@@ -1222,7 +1215,7 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryTypeAnnotationFlow() {
             advance(JSLexer::GrammarContext::Type).End,
             new (context_) ESTree::NumberLiteralTypeAnnotationNode(value, raw));
       } else if (check(TokenKind::bigint_literal)) {
-        UniqueString *raw = lexer_.getStringLiteral(llvh::StringRef(
+        UniqueString *raw = lexer_.getStringLiteral(StringRef(
             start.getPointer(),
             tok_->getEndLoc().getPointer() - start.getPointer()));
         return setLocation(

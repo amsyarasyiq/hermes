@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+use super::runtime::*;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -12,8 +13,6 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::rc::Rc;
-
-use super::runtime::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum JSValue {

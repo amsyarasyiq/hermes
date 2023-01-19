@@ -63,7 +63,7 @@ const char *BinaryOperatorInst::assignmentOpStringRepr[] = {
     "<<=", ">>=", ">>>=", "+=",  "-=",  "*=",    "/=", "%=", "|=",
     "^=",  "&=",  "**=",  "||=", "&&=", "\?\?=", "",   ""};
 
-UnaryOperatorInst::OpKind UnaryOperatorInst::parseOperator(llvh::StringRef op) {
+UnaryOperatorInst::OpKind UnaryOperatorInst::parseOperator(StringRef op) {
   for (int i = 0; i < static_cast<int>(BinaryOperatorInst::OpKind::LAST_OPCODE);
        i++) {
     if (op == UnaryOperatorInst::opStringRepr[i]) {
@@ -96,7 +96,7 @@ SideEffectKind UnaryOperatorInst::getSideEffect() {
 }
 
 static BinaryOperatorInst::OpKind parseOperator_impl(
-    llvh::StringRef op,
+    StringRef op,
     const char **lookup_table) {
   for (int i = 0; i < static_cast<int>(BinaryOperatorInst::OpKind::LAST_OPCODE);
        i++) {
@@ -108,13 +108,12 @@ static BinaryOperatorInst::OpKind parseOperator_impl(
   llvm_unreachable("invalid operator string");
 }
 
-BinaryOperatorInst::OpKind BinaryOperatorInst::parseOperator(
-    llvh::StringRef op) {
+BinaryOperatorInst::OpKind BinaryOperatorInst::parseOperator(StringRef op) {
   return parseOperator_impl(op, opStringRepr);
 }
 
 BinaryOperatorInst::OpKind BinaryOperatorInst::parseAssignmentOperator(
-    llvh::StringRef op) {
+    StringRef op) {
   return parseOperator_impl(op, assignmentOpStringRepr);
 }
 

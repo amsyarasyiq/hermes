@@ -46,19 +46,18 @@ set(RTSources
   InterpreterTest.cpp
   IRInstrumentationTest.cpp
   JSLibTest.cpp
-  JSONParseTest.cpp
-  JSTypedArrayTest.cpp
   NativeFrameTest.cpp
   NativeFunctionTest.cpp
   NativeStateTest.cpp
   MarkBitArrayNCTest.cpp
+  ObjectBufferTest.cpp
   ObjectModelTest.cpp
   OperationsTest.cpp
   PredefinedStringsTest.cpp
   HandleTest.cpp
   RuntimeConfigTest.cpp
   SamplingHeapProfilerTest.cpp
-  SamplingProfilerTest.cpp
+  SamplingProfilerPosixTest.cpp
   SegmentedArrayTest.cpp
   SmallHermesValueTest.cpp
   SmallXStringTest.cpp

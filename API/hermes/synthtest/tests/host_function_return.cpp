@@ -42,7 +42,7 @@ const char *hostFunctionReturnTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:22",
+      "propID": 22,
       "propName": "foo",
       "value": "object:10"
     },

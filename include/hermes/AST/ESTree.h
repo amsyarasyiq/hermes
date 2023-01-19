@@ -22,6 +22,7 @@
 namespace hermes {
 
 using llvh::ArrayRef;
+using llvh::StringRef;
 
 namespace sem {
 class FunctionInfo;
@@ -125,7 +126,7 @@ class Node : public llvh::ilist_node<Node> {
   }
 
   /// \returns the textual name of the node.
-  llvh::StringRef getNodeName() {
+  StringRef getNodeName() {
     switch (getKind()) {
       default:
         llvm_unreachable("invalid node kind");
@@ -951,9 +952,7 @@ constexpr unsigned MAX_NESTED_BINARY = 30000;
 /// Check if an AST node is of the specified type and its `_operator`
 /// attribute is within the set of allowed operators.
 template <class N>
-static N *checkExprOperator(
-    ESTree::Node *e,
-    llvh::ArrayRef<llvh::StringRef> ops) {
+static N *checkExprOperator(ESTree::Node *e, llvh::ArrayRef<StringRef> ops) {
   if (auto *n = llvh::dyn_cast<N>(e)) {
     if (std::find(ops.begin(), ops.end(), n->_operator->str()) != ops.end())
       return n;
@@ -974,7 +973,7 @@ static N *checkExprOperator(
 template <class N>
 static llvh::SmallVector<N *, 1> linearizeLeft(
     N *e,
-    llvh::ArrayRef<llvh::StringRef> ops) {
+    llvh::ArrayRef<StringRef> ops) {
   llvh::SmallVector<N *, 1> vec;
 
   vec.push_back(e);
@@ -1001,7 +1000,7 @@ static llvh::SmallVector<N *, 1> linearizeLeft(
 template <class N>
 static llvh::SmallVector<N *, 1> linearizeRight(
     N *e,
-    llvh::ArrayRef<llvh::StringRef> ops) {
+    llvh::ArrayRef<StringRef> ops) {
   llvh::SmallVector<N *, 1> vec;
 
   vec.push_back(e);

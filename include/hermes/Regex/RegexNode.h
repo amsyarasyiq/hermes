@@ -469,10 +469,6 @@ class BackRefNode final : public Node {
  public:
   explicit BackRefNode(unsigned mexp) : mexp_(mexp) {}
 
-  void setBackRef(unsigned mexp) {
-    mexp_ = mexp;
-  }
-
  private:
   virtual NodeList *emitStep(RegexBytecodeStream &bcs) override {
     bcs.emit<BackRefInsn>()->mexp = mexp_;
@@ -884,7 +880,7 @@ class LookaroundNode : public Node {
       uint16_t mexpEnd,
       bool invert,
       bool forwards)
-      : exp_(std::move(exp)),
+      : exp_(move(exp)),
         expConstraints_(matchConstraintsForList(exp_)),
         invert_(invert),
         forwards_(forwards),

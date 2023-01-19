@@ -27,21 +27,21 @@ const testCase: AlignmentCase = {
 describe('Array', () => {
   test('ESTree', () => {
     expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
-            "declarations": [
-              {
-                "id": {
-                  "elements": [
-                    {
+      Object {
+        "body": Array [
+          Object {
+            "declarations": Array [
+              Object {
+                "id": Object {
+                  "elements": Array [
+                    Object {
                       "name": "a",
                       "optional": false,
                       "type": "Identifier",
                       "typeAnnotation": null,
                     },
                     null,
-                    {
+                    Object {
                       "name": "b",
                       "optional": false,
                       "type": "Identifier",
@@ -51,16 +51,16 @@ describe('Array', () => {
                   "type": "ArrayPattern",
                   "typeAnnotation": null,
                 },
-                "init": {
-                  "elements": [
-                    {
+                "init": Object {
+                  "elements": Array [
+                    Object {
                       "literalType": "numeric",
                       "raw": "1",
                       "type": "Literal",
                       "value": 1,
                     },
                     null,
-                    {
+                    Object {
                       "literalType": "numeric",
                       "raw": "2",
                       "type": "Literal",

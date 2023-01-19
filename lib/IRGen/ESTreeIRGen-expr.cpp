@@ -6,8 +6,6 @@
  */
 
 #include "ESTreeIRGen.h"
-#include "hermes/Regex/RegexSerialization.h"
-#include "hermes/Support/UTF8.h"
 
 #include "llvh/ADT/ScopeExit.h"
 
@@ -16,8 +14,7 @@ namespace irgen {
 
 Value *ESTreeIRGen::genExpression(ESTree::Node *expr, Identifier nameHint) {
   LLVM_DEBUG(
-      llvh::dbgs() << "IRGen expression of type " << expr->getNodeName()
-                   << "\n");
+      dbgs() << "IRGen expression of type " << expr->getNodeName() << "\n");
   IRBuilder::ScopedLocationChange slc(Builder, expr->getDebugLoc());
 
   // Handle identifiers.
@@ -34,30 +31,33 @@ Value *ESTreeIRGen::genExpression(ESTree::Node *expr, Identifier nameHint) {
   // Handle String Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-literals-string-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::StringLiteralNode>(expr)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
     return Builder.getLiteralString(Lit->_value->str());
   }
 
   // Handle Regexp Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-literals-regular-expression-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::RegExpLiteralNode>(expr)) {
-    return genRegExpLiteral(Lit);
+    LLVM_DEBUG(
+        dbgs() << "Loading regexp Literal \"" << Lit->_pattern->str() << " / "
+               << Lit->_flags->str() << "\"\n");
+
+    return Builder.createRegExpInst(
+        Identifier::getFromPointer(Lit->_pattern),
+        Identifier::getFromPointer(Lit->_flags));
   }
 
   // Handle Boolean Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-boolean-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::BooleanLiteralNode>(expr)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
     return Builder.getLiteralBool(Lit->_value);
   }
 
   // Handle Number Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-literals-numeric-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::NumericLiteralNode>(expr)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading Numeric Literal \"" << Lit->_value << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading Numeric Literal \"" << Lit->_value << "\"\n");
     return Builder.getLiteralNumber(Lit->_value);
   }
 
@@ -65,8 +65,7 @@ Value *ESTreeIRGen::genExpression(ESTree::Node *expr, Identifier nameHint) {
   // https://262.ecma-international.org/#sec-ecmascript-language-types-bigint-type
   if (auto *Lit = llvh::dyn_cast<ESTree::BigIntLiteralNode>(expr)) {
     LLVM_DEBUG(
-        llvh::dbgs() << "Loading BitInt Literal \"" << Lit->_bigint->str()
-                     << "\"\n");
+        dbgs() << "Loading BitInt Literal \"" << Lit->_bigint->str() << "\"\n");
     return Builder.getLiteralBigInt(Lit->_bigint);
   }
 
@@ -134,8 +133,7 @@ Value *ESTreeIRGen::genExpression(ESTree::Node *expr, Identifier nameHint) {
       assert(
           curFunction()->capturedThis &&
           "arrow function must have a captured this");
-      return Builder.createLoadFrameInst(
-          curFunction()->capturedThis, currentIRScope_);
+      return Builder.createLoadFrameInst(curFunction()->capturedThis);
     }
     return curFunction()->function->getThisParameter();
   }
@@ -244,7 +242,7 @@ void ESTreeIRGen::genExpressionBranch(
 }
 
 Value *ESTreeIRGen::genArrayFromElements(ESTree::NodeList &list) {
-  LLVM_DEBUG(llvh::dbgs() << "Initializing a new array\n");
+  LLVM_DEBUG(dbgs() << "Initializing a new array\n");
   AllocArrayInst::ArrayValueList elements;
 
   // Precalculate the minimum number of elements in case we need to call
@@ -358,7 +356,7 @@ Value *ESTreeIRGen::genArrayFromElements(ESTree::NodeList &list) {
     else
       newLength = Builder.getLiteralNumber(count);
     Builder.createStorePropertyInst(
-        newLength, allocArrayInst, llvh::StringRef("length"));
+        newLength, allocArrayInst, StringRef("length"));
   }
   return allocArrayInst;
 }
@@ -368,7 +366,7 @@ Value *ESTreeIRGen::genArrayExpr(ESTree::ArrayExpressionNode *Expr) {
 }
 
 Value *ESTreeIRGen::genCallExpr(ESTree::CallExpressionNode *call) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen 'call' statement/expression.\n");
+  LLVM_DEBUG(dbgs() << "IRGen 'call' statement/expression.\n");
 
   // Check for a direct call to eval().
   if (auto *identNode = llvh::dyn_cast<ESTree::IdentifierNode>(call->_callee)) {
@@ -498,142 +496,6 @@ Value *ESTreeIRGen::genOptionalCallExpr(
   return callResult;
 }
 
-/// \return a LiteralString with a textual representation of given \p call
-/// expression. This representation is built from the original source code, with
-/// some changes:
-///
-/// 1. unprintable character, new line, and spaces following new lines, are not
-///    emitted.
-/// 2. output is limited to kMaxTextifiedCalleeSizeUTF8Chars. If the source code
-/// is longer than the maximum number of characters, then the returned callee
-/// will look like
-///
-///  source code     : aaaaaaaaaa[.]+bbbbbbbbbb
-///  textified callee: "aaaaaaaaaa(...)bbbbbbbbbb"
-static LiteralString *getTextifiedCallExpr(
-    IRBuilder &builder,
-    ESTree::CallExpressionLikeNode *call) {
-  constexpr uint32_t kMaxTextifiedCalleeSizeUTF8Chars = 64;
-  // Pessimizing the maximum buffer size for the textified callee as if all
-  // characters were 4 bytes.
-  llvh::SmallVector<char, kMaxTextifiedCalleeSizeUTF8Chars * 4> textifiedCallee;
-  llvh::raw_svector_ostream OS(textifiedCallee);
-  ESTree::Node *callee{};
-  if (auto *C = llvh::dyn_cast<ESTree::CallExpressionNode>(call)) {
-    callee = C->_callee;
-  } else if (
-      auto *O = llvh::dyn_cast<ESTree::OptionalCallExpressionNode>(call)) {
-    callee = O->_callee;
-  } else {
-    llvm_unreachable("Unhandled CallExpressionLikeNode sub-type.");
-  }
-
-  // Count of how many UTF8 character are on the textified callee string.
-  uint32_t numUTF8Chars = 0;
-  const char *begin = callee->getSourceRange().Start.getPointer();
-  const char *end = callee->getSourceRange().End.getPointer();
-
-  const char *pos = begin;
-
-  /// Helper function that scans the input source code searching for the next
-  /// UTF8 char starting at \p iter. \return a StringRef with the chars that
-  /// form the next UTF8 char on the input, or None if the input has been
-  /// exhausted. Upon return, \p iter will be modified 1-past the last char
-  /// consumed from the input.
-  auto nextUTF8Char = [end](const char *&iter) -> OptValue<llvh::StringRef> {
-    assert(iter < end && "iter is past end");
-    const char *start;
-    bool skipSpace = false;
-    bool newLine;
-    bool unprintableChar;
-    // The function may need to decode several UTF8 charaters to skip new lines,
-    // spaces following new lines, and unprintable characters.
-    do {
-      if (iter == end) {
-        return llvh::None;
-      }
-
-      // From start, where does the current UTF8 character ends?
-      start = iter;
-      for (++iter; iter < end && isUTF8ContinuationByte(*iter); ++iter) {
-        // nothing
-      }
-
-      newLine = *start == '\n';
-      skipSpace |= newLine;
-      unprintableChar = static_cast<uint8_t>(*start) < 32;
-    } while (unprintableChar || newLine || (skipSpace && *start == ' '));
-
-    const size_t utf8CharLength = static_cast<size_t>(iter - start);
-    return llvh::StringRef{start, utf8CharLength};
-  };
-
-  // The algorithm is split in three separate steps:
-  // 1. Find the range in the input source that contains the first half of the
-  //    UTF8 characters that should be present on the output.
-  // 2. Find the window into the input source starting at the end of the range
-  //    computed in 1. and containing another half of the maximum output length.
-  //    This window is [mark, pos).
-  // 3. Slide the [mark, pos) window found in 2 until pos equals end.
-  //
-  // If the input is exhausted in 1. or 2., then the output string will contain
-  // a "copy" of the input source (minus the characters listed above); it will
-  // otherwise be prefix"(...)"suffix, with prefix being the first
-  // kMaxTextifiedCalleeSizeUTF8Chars / 2 UTF8 chars in the input source, and
-  // suffix, the last kMaxTextifiedCalleeSizeUTF8Chars / 2 UTF8 chars.
-
-  // Scan the input string starting from the first position until half of the
-  // maximum of allowed character have been scanned.
-  while (pos < end && numUTF8Chars < kMaxTextifiedCalleeSizeUTF8Chars / 2) {
-    if (auto ch = nextUTF8Char(pos)) {
-      ++numUTF8Chars;
-      OS << *ch;
-    }
-  }
-
-  assert(
-      (pos == end || numUTF8Chars == kMaxTextifiedCalleeSizeUTF8Chars / 2) &&
-      "Invalid source range");
-
-  // Now save the current position, and advance it until the end of the buffer,
-  // or until enough UTF8 characters are found.
-  const char *mark = pos;
-  while (pos < end && numUTF8Chars < kMaxTextifiedCalleeSizeUTF8Chars) {
-    if (nextUTF8Char(pos)) {
-      ++numUTF8Chars;
-    }
-  }
-
-  assert(
-      (pos == end || numUTF8Chars == kMaxTextifiedCalleeSizeUTF8Chars) &&
-      "Invalid source range");
-
-  if (pos < end) {
-    // Slide the suffix window if pos is not at the end of the input.
-    OS << "(...)";
-
-    while (pos < end) {
-      auto ch = nextUTF8Char(mark);
-      assert(ch && "should have a character");
-      (void)ch;
-      nextUTF8Char(pos);
-    }
-  }
-
-  // The input should be exhausted by now, and pos should be equal to end --
-  // meaning all characters have been decoded.
-  assert(pos == end && "Invalid source range");
-
-  // Now add all characters between mark and end to the textified callable.
-  while (mark < end) {
-    auto ch = nextUTF8Char(mark);
-    assert(ch && "should have a character");
-    OS << *ch;
-  }
-
-  return builder.getLiteralString(OS.str());
-}
-
 Value *ESTreeIRGen::emitCall(
     ESTree::CallExpressionLikeNode *call,
     Value *callee,
@@ -651,8 +513,7 @@ Value *ESTreeIRGen::emitCall(
       args.push_back(genExpression(&arg));
     }
 
-    return Builder.createCallInst(
-        getTextifiedCallExpr(Builder, call), callee, thisVal, args);
+    return Builder.createCallInst(callee, thisVal, args);
   }
 
   // Otherwise, there exists a spread argument, so the number of arguments
@@ -791,40 +652,37 @@ Value *ESTreeIRGen::genCallEvalExpr(ESTree::CallExpressionNode *call) {
 }
 
 /// Convert a property key node to its JavaScript string representation.
-static llvh::StringRef propertyKeyAsString(
+static StringRef propertyKeyAsString(
     llvh::SmallVectorImpl<char> &storage,
     ESTree::Node *Key) {
   // Handle String Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-literals-string-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::StringLiteralNode>(Key)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading String Literal \"" << Lit->_value << "\"\n");
     return Lit->_value->str();
   }
 
   // Handle identifiers as if they are String Literals.
   if (auto *Iden = llvh::dyn_cast<ESTree::IdentifierNode>(Key)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading String Literal \"" << Iden->_name << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading String Literal \"" << Iden->_name << "\"\n");
     return Iden->_name->str();
   }
 
   // Handle Number Literals.
   // http://www.ecma-international.org/ecma-262/6.0/#sec-literals-numeric-literals
   if (auto *Lit = llvh::dyn_cast<ESTree::NumericLiteralNode>(Key)) {
-    LLVM_DEBUG(
-        llvh::dbgs() << "Loading Numeric Literal \"" << Lit->_value << "\"\n");
+    LLVM_DEBUG(dbgs() << "Loading Numeric Literal \"" << Lit->_value << "\"\n");
     storage.resize(NUMBER_TO_STRING_BUF_SIZE);
     auto len = numberToString(Lit->_value, storage.data(), storage.size());
-    return llvh::StringRef(storage.begin(), len);
+    return StringRef(storage.begin(), len);
   }
 
   llvm_unreachable("Don't know this kind of property key");
-  return llvh::StringRef();
+  return StringRef();
 }
 
 Value *ESTreeIRGen::genObjectExpr(ESTree::ObjectExpressionNode *Expr) {
-  LLVM_DEBUG(llvh::dbgs() << "Initializing a new object\n");
+  LLVM_DEBUG(dbgs() << "Initializing a new object\n");
 
   /// Store information about a property. Is it an accessor (getter/setter) or
   /// a value, and the actual value.
@@ -979,7 +837,7 @@ Value *ESTreeIRGen::genObjectExpr(ESTree::ObjectExpressionNode *Expr) {
       // iteration.
       stringStorage.clear();
 
-      llvh::StringRef keyStr = propertyKeyAsString(stringStorage, prop->_key);
+      StringRef keyStr = propertyKeyAsString(stringStorage, prop->_key);
       auto *Key = Builder.getLiteralString(keyStr);
       assert(
           propMap[keyStr].valueNode == prop->_value &&
@@ -1064,7 +922,7 @@ Value *ESTreeIRGen::genObjectExpr(ESTree::ObjectExpressionNode *Expr) {
       continue;
     }
 
-    llvh::StringRef keyStr = propertyKeyAsString(stringStorage, prop->_key);
+    StringRef keyStr = propertyKeyAsString(stringStorage, prop->_key);
 
     if (prop == protoProperty) {
       // This is the first definition of __proto__. If we already used it
@@ -1288,7 +1146,6 @@ Value *ESTreeIRGen::genYieldStarExpr(ESTree::YieldExpressionNode *Y) {
   // Avoid using emitIteratorNext here because the spec does not.
   Builder.setInsertionBlock(getNextBlock);
   auto *nextResult = Builder.createCallInst(
-      CallInst::kNoTextifiedCallee,
       iteratorRecord.nextMethod,
       iteratorRecord.iterator,
       {Builder.createLoadStackInst(received)});
@@ -1343,7 +1200,6 @@ Value *ESTreeIRGen::genYieldStarExpr(ESTree::YieldExpressionNode *Y) {
                 // iv. Let innerReturnResult be
                 // ? Call(return, iterator, received.[[Value]]).
                 auto *innerReturnResult = Builder.createCallInst(
-                    CallInst::kNoTextifiedCallee,
                     returnMethod,
                     iteratorRecord.iterator,
                     {Builder.createLoadStackInst(received)});
@@ -1429,10 +1285,7 @@ Value *ESTreeIRGen::genYieldStarExpr(ESTree::YieldExpressionNode *Y) {
         // propagated. Normal completions from an inner throw method are
         // processed similarly to an inner next.
         auto *innerResult = Builder.createCallInst(
-            CallInst::kNoTextifiedCallee,
-            throwMethod,
-            iteratorRecord.iterator,
-            {catchReg});
+            throwMethod, iteratorRecord.iterator, {catchReg});
         // ii. 4. If Type(innerResult) is not Object,
         //        throw a TypeError exception.
         emitEnsureObject(
@@ -1535,7 +1388,7 @@ Value *ESTreeIRGen::genUnaryExpression(ESTree::UnaryExpressionNode *U) {
   if (kind == UnaryOperatorInst::OpKind::DeleteKind) {
     if (auto *memberExpr =
             llvh::dyn_cast<ESTree::MemberExpressionNode>(U->_argument)) {
-      LLVM_DEBUG(llvh::dbgs() << "IRGen delete member expression.\n");
+      LLVM_DEBUG(dbgs() << "IRGen delete member expression.\n");
 
       return genMemberExpression(memberExpr, MemberExpressionOperation::Delete)
           .result;
@@ -1543,7 +1396,7 @@ Value *ESTreeIRGen::genUnaryExpression(ESTree::UnaryExpressionNode *U) {
 
     if (auto *memberExpr = llvh::dyn_cast<ESTree::OptionalMemberExpressionNode>(
             U->_argument)) {
-      LLVM_DEBUG(llvh::dbgs() << "IRGen delete optional member expression.\n");
+      LLVM_DEBUG(dbgs() << "IRGen delete optional member expression.\n");
 
       return genOptionalMemberExpression(
                  memberExpr, nullptr, MemberExpressionOperation::Delete)
@@ -1601,7 +1454,7 @@ Value *ESTreeIRGen::genUnaryExpression(ESTree::UnaryExpressionNode *U) {
 }
 
 Value *ESTreeIRGen::genUpdateExpr(ESTree::UpdateExpressionNode *updateExpr) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen update expression.\n");
+  LLVM_DEBUG(dbgs() << "IRGen update expression.\n");
   bool isPrefix = updateExpr->_prefix;
 
   UnaryOperatorInst::OpKind opKind;
@@ -1643,7 +1496,7 @@ static Identifier extractNameHint(const LReference &lref) {
 }
 
 Value *ESTreeIRGen::genAssignmentExpr(ESTree::AssignmentExpressionNode *AE) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen assignment operator.\n");
+  LLVM_DEBUG(dbgs() << "IRGen assignment operator.\n");
 
   auto opStr = AE->_operator->str();
 
@@ -1700,45 +1553,6 @@ Value *ESTreeIRGen::genAssignmentExpr(ESTree::AssignmentExpressionNode *AE) {
 
   // Return the value that we stored as the result of the expression.
   return result;
-}
-
-Value *ESTreeIRGen::genRegExpLiteral(ESTree::RegExpLiteralNode *RE) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen reg exp literal.\n");
-  LLVM_DEBUG(
-      llvh::dbgs() << "Loading regexp Literal \"" << RE->_pattern->str()
-                   << " / " << RE->_flags->str() << "\"\n");
-  auto exp = Builder.createRegExpInst(
-      Identifier::getFromPointer(RE->_pattern),
-      Identifier::getFromPointer(RE->_flags));
-
-  auto &regexp = Builder.getModule()->getContext().getCompiledRegExp(
-      RE->_pattern, RE->_flags);
-
-  if (regexp.getMapping().size()) {
-    auto &mapping = regexp.getMapping();
-    HBCAllocObjectFromBufferInst::ObjectPropertyMap propMap;
-    for (auto &identifier : regexp.getOrderedGroupNames()) {
-      std::string converted;
-      convertUTF16ToUTF8WithSingleSurrogates(converted, identifier);
-      auto *key = Builder.getLiteralString(converted);
-      auto groupIdxRes = mapping.find(identifier);
-      assert(
-          groupIdxRes != mapping.end() &&
-          "identifier not found in named groups");
-      auto groupIdx = groupIdxRes->second;
-      auto *val = Builder.getLiteralNumber(groupIdx);
-      propMap.emplace_back(key, val);
-    }
-    auto sz = mapping.size();
-
-    auto literalObj = Builder.createHBCAllocObjectFromBufferInst(propMap, sz);
-
-    Value *params[] = {exp, literalObj};
-    Builder.createCallBuiltinInst(
-        BuiltinMethod::HermesBuiltin_initRegexNamedGroups, params);
-  }
-
-  return exp;
 }
 
 Value *ESTreeIRGen::genLogicalAssignmentExpr(
@@ -1829,8 +1643,7 @@ Value *ESTreeIRGen::genConditionalExpr(ESTree::ConditionalExpressionNode *C) {
 Value *ESTreeIRGen::genIdentifierExpression(
     ESTree::IdentifierNode *Iden,
     bool afterTypeOf) {
-  LLVM_DEBUG(
-      llvh::dbgs() << "Looking for identifier \"" << Iden->_name << "\"\n");
+  LLVM_DEBUG(dbgs() << "Looking for identifier \"" << Iden->_name << "\"\n");
 
   // 'arguments' is an array-like object holding all function arguments.
   // If one of the parameters is called "arguments" then it shadows the
@@ -1839,8 +1652,7 @@ Value *ESTreeIRGen::genIdentifierExpression(
       !nameTable_.count(getNameFieldFromID(Iden))) {
     // If it is captured, we must use the captured value.
     if (curFunction()->capturedArguments) {
-      return Builder.createLoadFrameInst(
-          curFunction()->capturedArguments, currentIRScope_);
+      return Builder.createLoadFrameInst(curFunction()->capturedArguments);
     }
 
     return curFunction()->createArgumentsInst;
@@ -1858,17 +1670,17 @@ Value *ESTreeIRGen::genIdentifierExpression(
   }
 
   LLVM_DEBUG(
-      llvh::dbgs() << "Found variable " << StrName << " in function \""
-                   << (llvh::isa<GlobalObjectProperty>(Var)
-                           ? llvh::StringRef("global")
-                           : cast<Variable>(Var)
-                                 ->getParent()
-                                 ->getFunction()
-                                 ->getInternalNameStr())
-                   << "\"\n");
+      dbgs() << "Found variable " << StrName << " in function \""
+             << (llvh::isa<GlobalObjectProperty>(Var)
+                     ? StringRef("global")
+                     : cast<Variable>(Var)
+                           ->getParent()
+                           ->getFunction()
+                           ->getInternalNameStr())
+             << "\"\n");
 
   // Typeof <variable> does not throw.
-  return emitLoad(Var, afterTypeOf);
+  return emitLoad(Builder, Var, afterTypeOf);
 }
 
 Value *ESTreeIRGen::genMetaProperty(ESTree::MetaPropertyNode *MP) {
@@ -1888,7 +1700,7 @@ Value *ESTreeIRGen::genMetaProperty(ESTree::MetaPropertyNode *MP) {
 
       // If it is a variable, we must issue a load.
       if (auto *V = llvh::dyn_cast<Variable>(value))
-        return Builder.createLoadFrameInst(V, currentIRScope_);
+        return Builder.createLoadFrameInst(V);
 
       return value;
     }
@@ -1898,7 +1710,7 @@ Value *ESTreeIRGen::genMetaProperty(ESTree::MetaPropertyNode *MP) {
 }
 
 Value *ESTreeIRGen::genNewExpr(ESTree::NewExpressionNode *N) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen 'new' statement/expression.\n");
+  LLVM_DEBUG(dbgs() << "IRGen 'new' statement/expression.\n");
 
   Value *callee = genExpression(N->_callee);
 
@@ -1930,7 +1742,7 @@ Value *ESTreeIRGen::genNewExpr(ESTree::NewExpressionNode *N) {
 Value *ESTreeIRGen::genLogicalExpression(
     ESTree::LogicalExpressionNode *logical) {
   auto opStr = logical->_operator->str();
-  LLVM_DEBUG(llvh::dbgs() << "IRGen of short circuiting: " << opStr << ".\n");
+  LLVM_DEBUG(dbgs() << "IRGen of short circuiting: " << opStr << ".\n");
 
   enum class Kind {
     And, // &&
@@ -2011,8 +1823,7 @@ void ESTreeIRGen::genLogicalExpressionBranch(
     BasicBlock *onFalse,
     BasicBlock *onNullish) {
   auto opStr = logical->_operator->str();
-  LLVM_DEBUG(
-      llvh::dbgs() << "IRGen of short circuiting: " << opStr << " branch.\n");
+  LLVM_DEBUG(dbgs() << "IRGen of short circuiting: " << opStr << " branch.\n");
 
   auto parentFunc = Builder.getInsertionBlock()->getParent();
   auto *block = Builder.createBasicBlock(parentFunc);
@@ -2031,7 +1842,7 @@ void ESTreeIRGen::genLogicalExpressionBranch(
 }
 
 Value *ESTreeIRGen::genTemplateLiteralExpr(ESTree::TemplateLiteralNode *Expr) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen 'TemplateLiteral' expression.\n");
+  LLVM_DEBUG(dbgs() << "IRGen 'TemplateLiteral' expression.\n");
 
   assert(
       Expr->_quasis.size() == Expr->_expressions.size() + 1 &&
@@ -2074,7 +1885,7 @@ Value *ESTreeIRGen::genTemplateLiteralExpr(ESTree::TemplateLiteralNode *Expr) {
 
 Value *ESTreeIRGen::genTaggedTemplateExpr(
     ESTree::TaggedTemplateExpressionNode *Expr) {
-  LLVM_DEBUG(llvh::dbgs() << "IRGen 'TaggedTemplateExpression' expression.\n");
+  LLVM_DEBUG(dbgs() << "IRGen 'TaggedTemplateExpression' expression.\n");
   // Step 1: get the template object.
   auto *templateLit = cast<ESTree::TemplateLiteralNode>(Expr->_quasi);
 
@@ -2144,8 +1955,7 @@ Value *ESTreeIRGen::genTaggedTemplateExpr(
     callee = genExpression(Expr->_tag);
   }
 
-  return Builder.createCallInst(
-      CallInst::kNoTextifiedCallee, callee, thisVal, tagFuncArgList);
+  return Builder.createCallInst(callee, thisVal, tagFuncArgList);
 }
 
 } // namespace irgen

@@ -94,7 +94,7 @@ class UsageCounter : public BytecodeVisitor {
   uintptr_t opcodeEnd_;
   uintptr_t functionEnd_;
 
-  llvh::DenseMap<std::pair<llvh::StringRef, unsigned>, unsigned> emitted_;
+  llvh::DenseMap<std::pair<StringRef, unsigned>, unsigned> emitted_;
 
   /// Indices into the bytecode's string table corresponding to the (exclusive)
   /// end of each string kind entry.
@@ -109,7 +109,7 @@ class UsageCounter : public BytecodeVisitor {
     }
 
     // Do one pass of deduplication while emitting. This cuts output in half.
-    std::pair<llvh::StringRef, unsigned> key = {type, dedupKey};
+    std::pair<StringRef, unsigned> key = {type, dedupKey};
     if (emitted_.count(key)) {
       assert(emitted_[key] == size && "Expected deduped entry to be same size");
       return;
@@ -150,10 +150,6 @@ class UsageCounter : public BytecodeVisitor {
   void emitGlobalInfo() {
     appendRecord("headers:global:bundle", 0, sizeof(BytecodeFileHeader));
     appendRecord("headers:global:debuginfo", 0, sizeof(DebugInfoHeader));
-    appendRecord(
-        "headers:global:debuginfo:stringtable",
-        0,
-        bcProvider_->getDebugInfo()->getStringTableSizeBytes());
     // FIXME: Some padding is not included.
   }
 
@@ -225,32 +221,6 @@ class UsageCounter : public BytecodeVisitor {
       }
       appendRecord(
           "debuginfo:lexicaldata", offsets->lexicalData, offset - start);
-    }
-
-    if (offsets->textifiedCallees &&
-        offsets->textifiedCallees != DebugOffsets::NO_OFFSET) {
-      auto data = bcProvider_->getDebugInfo()->viewData().getData();
-      unsigned start = offsets->textifiedCallees +
-          bcProvider_->getDebugInfo()->textifiedCalleeOffset();
-      unsigned offset = start;
-      int64_t count;
-      int64_t trash;
-
-      // Read entry count
-      offset += readSignedLEB128(data, offset, &count);
-
-      // Read entries
-      for (int64_t i = 0; i < count; i++) {
-        // loc
-        offset += readSignedLEB128(data, offset, &trash);
-
-        // function name
-        int64_t stringLength;
-        offset += readSignedLEB128(data, offset, &stringLength);
-        offset += stringLength;
-      }
-      appendRecord(
-          "debuginfo:functionname", offsets->textifiedCallees, offset - start);
     }
   }
 

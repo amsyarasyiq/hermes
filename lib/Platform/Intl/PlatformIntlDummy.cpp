@@ -36,15 +36,12 @@ vm::CallResult<std::u16string> toLocaleUpperCase(
   return std::u16string(u"uppered");
 }
 
-namespace {
-struct CollatorDummy : Collator {
-  CollatorDummy(const char16_t *l) : locale(l) {}
+struct Collator::Impl {
   std::u16string locale;
 };
-} // namespace
 
-Collator::Collator() = default;
-Collator::~Collator() = default;
+Collator::Collator() : impl_(std::make_unique<Impl>()) {}
+Collator::~Collator() {}
 
 vm::CallResult<std::vector<std::u16string>> Collator::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -53,17 +50,17 @@ vm::CallResult<std::vector<std::u16string>> Collator::supportedLocalesOf(
   return std::vector<std::u16string>{u"en-CA", u"de-DE"};
 }
 
-vm::CallResult<std::unique_ptr<Collator>> Collator::create(
+vm::ExecutionStatus Collator::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
-  return std::make_unique<CollatorDummy>(u"en-US");
+  impl_->locale = u"en-US";
+  return vm::ExecutionStatus::RETURNED;
 }
 
 Options Collator::resolvedOptions() noexcept {
   Options options;
-  options.emplace(
-      u"locale", Option(static_cast<CollatorDummy *>(this)->locale));
+  options.emplace(u"locale", Option(impl_->locale));
   options.emplace(u"numeric", Option(false));
   return options;
 }
@@ -74,15 +71,12 @@ double Collator::compare(
   return x.compare(y);
 }
 
-namespace {
-struct DateTimeFormatDummy : DateTimeFormat {
-  DateTimeFormatDummy(const char16_t *l) : locale(l) {}
+struct DateTimeFormat::Impl {
   std::u16string locale;
 };
-} // namespace
 
-DateTimeFormat::DateTimeFormat() = default;
-DateTimeFormat::~DateTimeFormat() = default;
+DateTimeFormat::DateTimeFormat() : impl_(std::make_unique<Impl>()) {}
+DateTimeFormat::~DateTimeFormat() {}
 
 vm::CallResult<std::vector<std::u16string>> DateTimeFormat::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -91,17 +85,17 @@ vm::CallResult<std::vector<std::u16string>> DateTimeFormat::supportedLocalesOf(
   return std::vector<std::u16string>{u"en-CA", u"de-DE"};
 }
 
-vm::CallResult<std::unique_ptr<DateTimeFormat>> DateTimeFormat::create(
+vm::ExecutionStatus DateTimeFormat::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
-  return std::make_unique<DateTimeFormatDummy>(u"en-US");
+  impl_->locale = u"en-US";
+  return vm::ExecutionStatus::RETURNED;
 }
 
 Options DateTimeFormat::resolvedOptions() noexcept {
   Options options;
-  options.emplace(
-      u"locale", Option(static_cast<DateTimeFormatDummy *>(this)->locale));
+  options.emplace(u"locale", Option(impl_->locale));
   options.emplace(u"numeric", Option(false));
   return options;
 }
@@ -121,15 +115,12 @@ DateTimeFormat::formatToParts(double jsTimeValue) noexcept {
   return std::vector<std::unordered_map<std::u16string, std::u16string>>{part};
 }
 
-namespace {
-struct NumberFormatDummy : NumberFormat {
-  NumberFormatDummy(const char16_t *l) : locale(l) {}
+struct NumberFormat::Impl {
   std::u16string locale;
 };
-} // namespace
 
-NumberFormat::NumberFormat() = default;
-NumberFormat::~NumberFormat() = default;
+NumberFormat::NumberFormat() : impl_(std::make_unique<Impl>()) {}
+NumberFormat::~NumberFormat() {}
 
 vm::CallResult<std::vector<std::u16string>> NumberFormat::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -138,17 +129,17 @@ vm::CallResult<std::vector<std::u16string>> NumberFormat::supportedLocalesOf(
   return std::vector<std::u16string>{u"en-CA", u"de-DE"};
 }
 
-vm::CallResult<std::unique_ptr<NumberFormat>> NumberFormat::create(
+vm::ExecutionStatus NumberFormat::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
-  return std::make_unique<NumberFormatDummy>(u"en-US");
+  impl_->locale = u"en-US";
+  return vm::ExecutionStatus::RETURNED;
 }
 
 Options NumberFormat::resolvedOptions() noexcept {
   Options options;
-  options.emplace(
-      u"locale", Option(static_cast<NumberFormatDummy *>(this)->locale));
+  options.emplace(u"locale", Option(impl_->locale));
   options.emplace(u"numeric", Option(false));
   return options;
 }

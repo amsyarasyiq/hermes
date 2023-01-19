@@ -532,7 +532,7 @@ Handle<HiddenClass> JSArray::createClass(
   return classHandle;
 }
 
-CallResult<Handle<JSArray>> JSArray::createNoAllocPropStorage(
+CallResult<Handle<JSArray>> JSArray::create(
     Runtime &runtime,
     Handle<JSObject> prototypeHandle,
     Handle<HiddenClass> classHandle,
@@ -540,8 +540,10 @@ CallResult<Handle<JSArray>> JSArray::createNoAllocPropStorage(
     size_type length) {
   assert(length <= capacity && "length must be <= capacity");
 
+  // Allocate property storage with size corresponding to number of properties
+  // in the hidden class.
   assert(
-      classHandle->getNumProperties() >= jsArrayPropertyCount() &&
+      classHandle->getNumProperties() == jsArrayPropertyCount() &&
       "invalid number of properties in JSArray hidden class");
 
   auto self = JSObjectInit::initToHandle(
@@ -565,30 +567,9 @@ CallResult<Handle<JSArray>> JSArray::createNoAllocPropStorage(
   return self;
 }
 
-CallResult<Handle<JSArray>> JSArray::createAndAllocPropStorage(
-    Runtime &runtime,
-    Handle<JSObject> prototypeHandle,
-    Handle<HiddenClass> classHandle,
-    size_type capacity,
-    size_type length) {
-  CallResult<Handle<JSArray>> res = createNoAllocPropStorage(
-      runtime, prototypeHandle, classHandle, capacity, length);
-  if (LLVM_UNLIKELY(res == ExecutionStatus::EXCEPTION)) {
-    return ExecutionStatus::EXCEPTION;
-  }
-
-  // Allocate property storage with size corresponding to number of properties
-  // in the hidden class.
-  Handle<JSArray> arr = std::move(*res);
-  runtime.ignoreAllocationFailure(JSObject::allocatePropStorage(
-      arr, runtime, classHandle->getNumProperties()));
-
-  return arr;
-}
-
 CallResult<Handle<JSArray>>
 JSArray::create(Runtime &runtime, size_type capacity, size_type length) {
-  return JSArray::createNoAllocPropStorage(
+  return JSArray::create(
       runtime,
       Handle<JSObject>::vmcast(&runtime.arrayPrototype),
       Handle<HiddenClass>::vmcast(&runtime.arrayClass),

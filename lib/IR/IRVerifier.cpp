@@ -54,7 +54,6 @@ class Verifier : public InstructionVisitor<Verifier, void> {
    public:
     const Function &function;
     bool createArgumentsEncountered = false;
-    ScopeCreationInst *functionBodyScopeDescCreator = nullptr;
 
     FunctionState(Verifier *verifier, const Function &function)
         : verifier(verifier),
@@ -89,7 +88,6 @@ class Verifier : public InstructionVisitor<Verifier, void> {
   void beforeVisitInstruction(const Instruction &I);
 
   void visitModule(const Module &M);
-  void visitScope(const ScopeDesc &S);
   void visitFunction(const Function &F);
   void visitBasicBlock(const BasicBlock &BB);
 
@@ -131,26 +129,7 @@ class Verifier : public InstructionVisitor<Verifier, void> {
     }                                                               \
   } while (0)
 
-void Verifier::visitScope(const ScopeDesc &S) {
-  Assert(S.getParent(), "All scopes should have a parent");
-
-  const auto &parentsChildren = S.getParent()->getInnerScopes();
-  Assert(
-      std::find(parentsChildren.begin(), parentsChildren.end(), &S) !=
-          parentsChildren.end(),
-      "Scope is not in parent's inner scope list");
-
-  Assert(S.hasFunction(), "Scope is not bound to a function");
-  for (ScopeDesc *i : S.getInnerScopes()) {
-    visitScope(*i);
-  }
-}
-
 void Verifier::visitModule(const Module &M) {
-  for (ScopeDesc *S : M.getInitialScope()->getInnerScopes()) {
-    visitScope(*S);
-  }
-
   // Verify all functions are valid
   for (Module::const_iterator I = M.begin(); I != M.end(); I++) {
     Assert(I->getParent() == &M, "Function's parent does not match module");
@@ -308,8 +287,6 @@ static bool isTerminator(const Instruction *Inst) {
   return &*Inst->getParent()->rbegin() == Inst;
 }
 
-void Verifier::visitScopeCreationInst(const ScopeCreationInst &Inst) {}
-
 void Verifier::visitSingleOperandInst(const SingleOperandInst &Inst) {}
 
 void Verifier::visitReturnInst(const ReturnInst &Inst) {
@@ -456,19 +433,6 @@ void Verifier::visitLoadFrameInst(const LoadFrameInst &Inst) {
 
 void Verifier::visitLoadStackInst(const LoadStackInst &Inst) {
   // Nothing to verify at this point.
-}
-
-void Verifier::visitCreateScopeInst(const CreateScopeInst &Inst) {
-  Assert(functionState, "function state cannot be null");
-  Assert(
-      !functionState->functionBodyScopeDescCreator,
-      "multiple functions materializing function's body scope desc");
-  functionState->functionBodyScopeDescCreator =
-      const_cast<CreateScopeInst *>(&Inst);
-  Assert(
-      functionState->function.getFunctionScopeDesc() ==
-          Inst.getCreatedScopeDesc(),
-      "CreateScopeInst is materializing the wrong scope desc");
 }
 
 void Verifier::visitCreateFunctionInst(const CreateFunctionInst &Inst) {
@@ -787,16 +751,7 @@ void Verifier::visitDirectEvalInst(DirectEvalInst const &Inst) {
 
 void Verifier::visitHBCCreateEnvironmentInst(
     const HBCCreateEnvironmentInst &Inst) {
-  Assert(functionState, "function state cannot be null");
-  Assert(
-      !functionState->functionBodyScopeDescCreator,
-      "multiple functions materializing function's body scope desc");
-  functionState->functionBodyScopeDescCreator =
-      const_cast<HBCCreateEnvironmentInst *>(&Inst);
-  Assert(
-      functionState->function.getFunctionScopeDesc() ==
-          Inst.getCreatedScopeDesc(),
-      "HBCCreateEnvironmentInst is materializing the wrong scope desc");
+  // Nothing to verify at this point.
 }
 
 void Verifier::visitHBCProfilePointInst(const HBCProfilePointInst &Inst) {
@@ -842,27 +797,9 @@ void Verifier::visitCompareBranchInst(const CompareBranchInst &Inst) {
 void Verifier::visitCreateGeneratorInst(const CreateGeneratorInst &Inst) {}
 void Verifier::visitStartGeneratorInst(const StartGeneratorInst &Inst) {
   Assert(
-      Inst.getParent() == &Inst.getParent()->getParent()->front(),
-      "StartGeneratorInst must be in the function's first basic block.");
-
-  BasicBlock::iterator it = Inst.getParent()->begin();
-
-  if (&Inst == &*it) {
-    // First instruction in the basic block, OK.
-    return;
-  }
-
-  if (llvh::isa<CreateScopeInst>(&*it)) {
-    ++it;
-    if (&Inst == &*it) {
-      return;
-    }
-  }
-
-  Assert(
-      false,
-      "StartGeneratorInst must be the first instruction of a function, "
-      "or the second instructions following a CreateScopeInst");
+      &Inst == &Inst.getParent()->front() &&
+          Inst.getParent() == &Inst.getParent()->getParent()->front(),
+      "StartGeneratorInst must be the first instruction of a function");
 }
 void Verifier::visitResumeGeneratorInst(const ResumeGeneratorInst &Inst) {}
 

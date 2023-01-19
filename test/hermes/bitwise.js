@@ -9,9 +9,6 @@
 // RUN: %hermes -O -target=HBC -emit-binary -out %t.hbc %s && %hermes %t.hbc | %FileCheck --match-full-lines %s
 "use strict";
 
-var obj1 = { valueOf: function() { print("obj1"); return 42; }};
-var obj2 = { valueOf: function() { print("obj2"); return 10; }};
-
 function lshift(x, y) {
   return x << y;
 }
@@ -43,10 +40,6 @@ print(this['lshift'](-1, 32));
 print(this['lshift'](-2147483648, 1));
 // CHECK-NEXT: 0
 
-print(this['lshift'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 43008
 
 function rshift(x, y) {
   return x >> y;
@@ -73,11 +66,6 @@ print(this['rshift']('9', 1));
 print(this['rshift'](0xdeadbeef, 16));
 // CHECK-NEXT: -8531
 
-print(this['rshift'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 0
-
 function urshift(x, y) {
   return x >>> y;
 }
@@ -100,11 +88,6 @@ print(this['urshift'](18832, 0x82));
 print(this['urshift'](0xdeadbeef, 16));
 // CHECK-NEXT: 57005
 
-print(this['urshift'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 0
-
 function band(x, y) {
   return x & y;
 }
@@ -118,11 +101,6 @@ print(this['band'](0xdeadbeef, 0xc0ffee));
 print(this['band']('0xdeadbeef', 0xc0ffee));
 // CHECK-NEXT: 8437486
 
-print(this['band'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 10
-
 function bor(x, y) {
   return x | y;
 }
@@ -135,11 +113,6 @@ print(this['bor'](0xdeadbeef, 0xc0ffee));
 
 print(this['bor']('0xdeadbeef', 0xc0ffee));
 // CHECK-NEXT: -554827793
-
-print(this['bor'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 42
 
 function borzero(x) {
   return x | 0;
@@ -170,10 +143,6 @@ print(this['borzero'](-0xffffffff - 2));
 print(this['borzero'](1e21));
 // CHECK-NEXT: -559939584
 
-print(this['borzero'](obj1));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: 42
-
 function bxor(x, y) {
   return x ^ y;
 }
@@ -187,11 +156,6 @@ print(this['bxor'](0xdeadbeef, 0xc0ffee));
 print(this['bxor']('0xdeadbeef', 0xc0ffee));
 // CHECK-NEXT: -563265279
 
-print(this['bxor'](obj1, obj2));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: obj2
-// CHECK-NEXT: 32
-
 function bnot(x) {
   return ~x;
 }
@@ -204,7 +168,3 @@ print(this['bnot'](0xdeadbeef));
 
 print(this['bnot']('0xdeadbeef'));
 // CHECK-NEXT: 559038736
-
-print(this['bnot'](obj1));
-// CHECK-NEXT: obj1
-// CHECK-NEXT: -43

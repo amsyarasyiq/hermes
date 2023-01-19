@@ -7,7 +7,7 @@
 
 #include "SemanticValidator.h"
 
-#include "hermes/Regex/RegexSerialization.h"
+#include "hermes/Support/RegExpSerialization.h"
 
 #include "llvh/ADT/ScopeExit.h"
 #include "llvh/ADT/SmallSet.h"
@@ -318,16 +318,12 @@ void SemanticValidator::visit(LabeledStatementNode *labelStmt) {
 /// Check RegExp syntax.
 void SemanticValidator::visit(RegExpLiteralNode *regexp) {
   llvh::StringRef regexpError;
-  if (compile_) {
-    if (auto compiled = CompiledRegExp::tryCompile(
-            regexp->_pattern->str(), regexp->_flags->str(), &regexpError)) {
-      astContext_.addCompiledRegExp(
-          regexp->_pattern, regexp->_flags, std::move(*compiled));
-    } else {
-      sm_.error(
-          regexp->getSourceRange(),
-          "Invalid regular expression: " + Twine(regexpError));
-    }
+  if (compile_ &&
+      !CompiledRegExp::tryCompile(
+          regexp->_pattern->str(), regexp->_flags->str(), &regexpError)) {
+    sm_.error(
+        regexp->getSourceRange(),
+        "Invalid regular expression: " + Twine(regexpError));
   }
   visitESTreeChildren(*this, regexp);
 }

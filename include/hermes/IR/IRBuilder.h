@@ -12,7 +12,6 @@
 #include <utility>
 
 #include "llvh/ADT/SmallVector.h"
-#include "llvh/ADT/StringRef.h"
 
 #include "hermes/AST/Context.h"
 #include "hermes/FrontEndDefs/Builtins.h"
@@ -39,7 +38,6 @@ class IRBuilder {
   BasicBlock *Block{};
 
   SMLoc Location{};
-  ScopeDesc *CurrentSourceLevelScope{};
 
  public:
   explicit IRBuilder(Module *Mod) : M(Mod), InsertionPoint(nullptr) {}
@@ -64,7 +62,6 @@ class IRBuilder {
   /// \param insertBefore Another function in the module where this function
   ///   should be inserted before. If null, appends to the end of the module.
   Function *createFunction(
-      ScopeDesc *scopeDesc,
       Identifier OriginalName,
       Function::DefinitionKind definitionKind,
       bool strictMode,
@@ -75,8 +72,7 @@ class IRBuilder {
 
   /// Create a new Function and add it to the Module.
   Function *createFunction(
-      ScopeDesc *scopeDesc,
-      llvh::StringRef OriginalName,
+      StringRef OriginalName,
       Function::DefinitionKind definitionKind,
       bool strictMode,
       SourceVisibility sourceVisibility = SourceVisibility::Default,
@@ -89,7 +85,6 @@ class IRBuilder {
   /// \param insertBefore Another function in the module where this function
   ///   should be inserted before. If null, appends to the end of the module.
   AsyncFunction *createAsyncFunction(
-      ScopeDesc *scopeDesc,
       Identifier OriginalName,
       Function::DefinitionKind definitionKind,
       bool strictMode,
@@ -102,7 +97,6 @@ class IRBuilder {
   /// \param insertBefore Another function in the module where this function
   ///   should be inserted before. If null, appends to the end of the module.
   GeneratorFunction *createGeneratorFunction(
-      ScopeDesc *scopeDesc,
       Identifier OriginalName,
       Function::DefinitionKind definitionKind,
       bool strictMode,
@@ -115,7 +109,6 @@ class IRBuilder {
   /// \param insertBefore Another function in the module where this function
   ///   should be inserted before. If null, appends to the end of the module.
   GeneratorInnerFunction *createGeneratorInnerFunction(
-      ScopeDesc *scopeDesc,
       Identifier OriginalName,
       Function::DefinitionKind definitionKind,
       bool strictMode,
@@ -124,10 +117,12 @@ class IRBuilder {
 
   /// Create the top level function representing the global scope.
   Function *createTopLevelFunction(
-      ScopeDesc *scopeDesc,
       bool strictMode,
       SourceVisibility sourceVisibility = SourceVisibility::Default,
       SMRange sourceRange = SMRange{});
+
+  /// Create a new ExternalScope with the given depth, which must be negative.
+  ExternalScope *createExternalScope(Function *function, int32_t depth);
 
   /// Create a new global object property.
   GlobalObjectProperty *createGlobalObjectProperty(
@@ -135,26 +130,26 @@ class IRBuilder {
       bool declared);
   /// Create a new global object property.
   GlobalObjectProperty *createGlobalObjectProperty(
-      llvh::StringRef name,
+      StringRef name,
       bool declared);
 
   /// Add a new parameter to function \p Parent.
   Parameter *createParameter(Function *Parent, Identifier Name);
 
   /// Add a new parameter to function \p Parent.
-  Parameter *createParameter(Function *Parent, llvh::StringRef Name);
+  Parameter *createParameter(Function *Parent, StringRef Name);
 
   /// Add a new variable to scope \p Parent.
   Variable *createVariable(
-      ScopeDesc *Parent,
+      VariableScope *Parent,
       Variable::DeclKind declKind,
       Identifier Name);
 
   /// Add a new variable to scope \p Parent.
   Variable *createVariable(
-      ScopeDesc *Parent,
+      VariableScope *Parent,
       Variable::DeclKind declKind,
-      llvh::StringRef Name);
+      StringRef Name);
 
   /// Create a new literal number of value \p value.
   LiteralNumber *getLiteralNumber(double value);
@@ -172,7 +167,7 @@ class IRBuilder {
   LiteralBigInt *getLiteralBigInt(UniqueString *value);
 
   /// Create a new literal string of value \p value.
-  LiteralString *getLiteralString(llvh::StringRef value);
+  LiteralString *getLiteralString(StringRef value);
 
   /// Create a new literal string of value \p value.
   LiteralString *getLiteralString(Identifier value);
@@ -195,8 +190,8 @@ class IRBuilder {
   /// Return the EmptySentinel value.
   EmptySentinel *getEmptySentinel();
 
-  /// Convert llvh::StringRef to Identifier.
-  Identifier createIdentifier(llvh::StringRef str);
+  /// Convert StringRef to Identifier.
+  Identifier createIdentifier(StringRef str);
 
   //--------------------------------------------------------------------------//
   //                          Statefull APIs.                                 //
@@ -250,10 +245,6 @@ class IRBuilder {
     return Location;
   }
 
-  void setCurrentSourceLevelScope(ScopeDesc *sourceLevelScope) {
-    CurrentSourceLevelScope = sourceLevelScope;
-  }
-
   /// Move instruction \p inst from its block to the insertion point in the
   /// current block. If the instruction is a terminator, correctly update the
   /// phi-nodes that refer to the old block and point then to the current one.
@@ -278,7 +269,7 @@ class IRBuilder {
 
   ReturnInst *createReturnInst(Value *Val);
 
-  AllocStackInst *createAllocStackInst(llvh::StringRef varName);
+  AllocStackInst *createAllocStackInst(StringRef varName);
 
   AllocStackInst *createAllocStackInst(Identifier varName);
 
@@ -290,34 +281,21 @@ class IRBuilder {
 
   AddEmptyStringInst *createAddEmptyStringInst(Value *val);
 
-  CreateScopeInst *createCreateScopeInst(ScopeDesc *scopeDesc);
-
-  CreateFunctionInst *createCreateFunctionInst(
-      Function *code,
-      ScopeCreationInst *environment);
+  CreateFunctionInst *createCreateFunctionInst(Function *code);
 
   LoadStackInst *createLoadStackInst(AllocStackInst *ptr);
 
-  LoadFrameInst *createLoadFrameInst(Variable *ptr, ScopeCreationInst *scope);
+  LoadFrameInst *createLoadFrameInst(Variable *ptr);
 
   StoreStackInst *createStoreStackInst(Value *storedValue, AllocStackInst *ptr);
 
-  StoreFrameInst *createStoreFrameInst(
-      Value *storedValue,
-      Variable *ptr,
-      ScopeCreationInst *scope);
+  StoreFrameInst *createStoreFrameInst(Value *storedValue, Variable *ptr);
 
-  CallInst *createCallInst(
-      LiteralString *textifiedCallee,
-      Value *callee,
-      Value *thisValue,
-      ArrayRef<Value *> args);
+  CallInst *
+  createCallInst(Value *callee, Value *thisValue, ArrayRef<Value *> args);
 
-  HBCCallNInst *createHBCCallNInst(
-      LiteralString *textifiedCallee,
-      Value *callee,
-      Value *thisValue,
-      ArrayRef<Value *> args);
+  HBCCallNInst *
+  createHBCCallNInst(Value *callee, Value *thisValue, ArrayRef<Value *> args);
 
   ConstructInst *createConstructInst(
       Value *constructor,
@@ -375,18 +353,16 @@ class IRBuilder {
       PropEnumerable isEnumerable);
   DeletePropertyInst *createDeletePropertyInst(
       Value *object,
-      llvh::StringRef property);
+      StringRef property);
 
-  LoadPropertyInst *createLoadPropertyInst(
-      Value *object,
-      llvh::StringRef property);
+  LoadPropertyInst *createLoadPropertyInst(Value *object, StringRef property);
   TryLoadGlobalPropertyInst *createTryLoadGlobalPropertyInst(
-      llvh::StringRef property);
+      StringRef property);
 
   StorePropertyInst *createStorePropertyInst(
       Value *storedValue,
       Value *object,
-      llvh::StringRef property);
+      StringRef property);
 
   DeletePropertyInst *createDeletePropertyInst(
       Value *object,
@@ -481,9 +457,7 @@ class IRBuilder {
       Value *result,
       BasicBlock *nextBlock);
 
-  CreateGeneratorInst *createCreateGeneratorInst(
-      Function *innerFn,
-      ScopeCreationInst *environment);
+  CreateGeneratorInst *createCreateGeneratorInst(Function *innerFn);
 
   StartGeneratorInst *createStartGeneratorInst();
 
@@ -493,9 +467,7 @@ class IRBuilder {
   //                  Target specific insertions                              //
   //--------------------------------------------------------------------------//
 
-  HBCResolveEnvironment *createHBCResolveEnvironment(
-      ScopeDesc *originScopeDesc,
-      ScopeDesc *targetScopeDesc);
+  HBCResolveEnvironment *createHBCResolveEnvironment(VariableScope *scope);
   HBCStoreToEnvironmentInst *
   createHBCStoreToEnvironmentInst(Value *env, Value *toPut, Variable *var);
   HBCLoadFromEnvironmentInst *createHBCLoadFromEnvironmentInst(
@@ -514,8 +486,7 @@ class IRBuilder {
 
   HBCLoadParamInst *createHBCLoadParamInst(LiteralNumber *value);
 
-  HBCCreateEnvironmentInst *createHBCCreateEnvironmentInst(
-      ScopeDesc *scopeDesc);
+  HBCCreateEnvironmentInst *createHBCCreateEnvironmentInst();
 
   HBCGetThisNSInst *createHBCGetThisNSInst();
 
@@ -553,7 +524,6 @@ class IRBuilder {
 #endif
 
   HBCCallDirectInst *createHBCCallDirectInst(
-      LiteralString *textifiedCallee,
       Function *callee,
       Value *thisValue,
       ArrayRef<Value *> arguments);

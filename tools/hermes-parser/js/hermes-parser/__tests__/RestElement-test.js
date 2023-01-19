@@ -30,25 +30,25 @@ describe('RestElement', () => {
 
   test('ESTree', () => {
     expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
+      Object {
+        "body": Array [
+          Object {
             "async": false,
-            "body": {
-              "body": [],
+            "body": Object {
+              "body": Array [],
               "type": "BlockStatement",
             },
             "expression": false,
             "generator": false,
-            "id": {
+            "id": Object {
               "name": "test1",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "params": [
-              {
-                "argument": {
+            "params": Array [
+              Object {
+                "argument": Object {
                   "name": "rest",
                   "optional": false,
                   "type": "Identifier",
@@ -62,25 +62,25 @@ describe('RestElement', () => {
             "type": "FunctionDeclaration",
             "typeParameters": null,
           },
-          {
+          Object {
             "async": false,
-            "body": {
-              "body": [],
+            "body": Object {
+              "body": Array [],
               "type": "BlockStatement",
             },
             "expression": false,
             "generator": false,
-            "id": {
+            "id": Object {
               "name": "test2",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "params": [
-              {
-                "elements": [
-                  {
-                    "argument": {
+            "params": Array [
+              Object {
+                "elements": Array [
+                  Object {
+                    "argument": Object {
                       "name": "rest",
                       "optional": false,
                       "type": "Identifier",
@@ -163,31 +163,31 @@ describe('RestElement', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
+        Object {
+          "body": Array [
+            Object {
               "async": false,
-              "body": {
-                "body": [],
+              "body": Object {
+                "body": Array [],
                 "type": "BlockStatement",
               },
               "expression": false,
               "generator": false,
-              "id": {
+              "id": Object {
                 "name": "test1",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "params": [
-                {
-                  "argument": {
+              "params": Array [
+                Object {
+                  "argument": Object {
                     "name": "rest",
                     "optional": false,
                     "type": "Identifier",
-                    "typeAnnotation": {
+                    "typeAnnotation": Object {
                       "type": "TypeAnnotation",
-                      "typeAnnotation": {
+                      "typeAnnotation": Object {
                         "type": "StringTypeAnnotation",
                       },
                     },
@@ -200,31 +200,31 @@ describe('RestElement', () => {
               "type": "FunctionDeclaration",
               "typeParameters": null,
             },
-            {
+            Object {
               "async": false,
-              "body": {
-                "body": [],
+              "body": Object {
+                "body": Array [],
                 "type": "BlockStatement",
               },
               "expression": false,
               "generator": false,
-              "id": {
+              "id": Object {
                 "name": "test2",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "params": [
-                {
-                  "elements": [
-                    {
-                      "argument": {
+              "params": Array [
+                Object {
+                  "elements": Array [
+                    Object {
+                      "argument": Object {
                         "name": "rest",
                         "optional": false,
                         "type": "Identifier",
-                        "typeAnnotation": {
+                        "typeAnnotation": Object {
                           "type": "TypeAnnotation",
-                          "typeAnnotation": {
+                          "typeAnnotation": Object {
                             "type": "StringTypeAnnotation",
                           },
                         },
@@ -312,30 +312,30 @@ describe('RestElement', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
+        Object {
+          "body": Array [
+            Object {
               "async": false,
-              "body": {
-                "body": [],
+              "body": Object {
+                "body": Array [],
                 "type": "BlockStatement",
               },
               "expression": false,
               "generator": false,
-              "id": {
+              "id": Object {
                 "name": "test1",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "params": [
-                {
-                  "argument": {
-                    "elements": [],
+              "params": Array [
+                Object {
+                  "argument": Object {
+                    "elements": Array [],
                     "type": "ArrayPattern",
-                    "typeAnnotation": {
+                    "typeAnnotation": Object {
                       "type": "TypeAnnotation",
-                      "typeAnnotation": {
+                      "typeAnnotation": Object {
                         "type": "StringTypeAnnotation",
                       },
                     },
@@ -348,30 +348,30 @@ describe('RestElement', () => {
               "type": "FunctionDeclaration",
               "typeParameters": null,
             },
-            {
+            Object {
               "async": false,
-              "body": {
-                "body": [],
+              "body": Object {
+                "body": Array [],
                 "type": "BlockStatement",
               },
               "expression": false,
               "generator": false,
-              "id": {
+              "id": Object {
                 "name": "test2",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "params": [
-                {
-                  "elements": [
-                    {
-                      "argument": {
-                        "elements": [],
+              "params": Array [
+                Object {
+                  "elements": Array [
+                    Object {
+                      "argument": Object {
+                        "elements": Array [],
                         "type": "ArrayPattern",
-                        "typeAnnotation": {
+                        "typeAnnotation": Object {
                           "type": "TypeAnnotation",
-                          "typeAnnotation": {
+                          "typeAnnotation": Object {
                             "type": "StringTypeAnnotation",
                           },
                         },

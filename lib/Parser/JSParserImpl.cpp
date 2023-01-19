@@ -107,7 +107,6 @@ void JSParserImpl::initializeIdentifiers() {
   voidIdent_ = lexer_.getIdentifier("void");
   nullIdent_ = lexer_.getIdentifier("null");
   symbolIdent_ = lexer_.getIdentifier("symbol");
-  bigintIdent_ = lexer_.getIdentifier("bigint");
 
   checksIdent_ = lexer_.getIdentifier("%checks");
 
@@ -2349,6 +2348,10 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryExpression() {
             startLoc, endLoc, new (context_) ESTree::CoverEmptyArgsNode());
       }
 
+#if HERMES_PARSE_FLOW
+      SMLoc startLocAfterParen = tok_->getStartLoc();
+#endif
+
       ESTree::Node *expr;
       if (check(TokenKind::dotdotdot)) {
         auto optRest = parseBindingRestElement(ParamIn);
@@ -2368,17 +2371,11 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryExpression() {
 
 #if HERMES_PARSE_FLOW
       if (context_.getParseFlow()) {
-        // In both these cases, we set the location to encompass the `()`.
-        // (x: T)
-        // ^^^^^^
-        // by using `startLoc` and `tok_` as the start/end.
-        // If `tok_` is not `)`, then we'll error on the `eat` call immediately
-        // after these checks.
         if (auto *cover = dyn_cast<ESTree::CoverTypedIdentifierNode>(expr)) {
           if (cover->_right && !cover->_optional) {
             expr = setLocation(
-                startLoc,
-                tok_,
+                expr,
+                getPrevTokenEndLoc(),
                 new (context_) ESTree::TypeCastExpressionNode(
                     cover->_left, cover->_right));
           }
@@ -2389,8 +2386,8 @@ Optional<ESTree::Node *> JSParserImpl::parsePrimaryExpression() {
             return None;
           ESTree::Node *type = *optType;
           expr = setLocation(
-              startLoc,
-              tok_,
+              startLocAfterParen,
+              getPrevTokenEndLoc(),
               new (context_) ESTree::TypeCastExpressionNode(expr, type));
         }
       }
@@ -4224,15 +4221,12 @@ Optional<ESTree::Node *> JSParserImpl::parseConditionalExpression(
   }
 #endif
 
-  // Calls to parseAssignmentExpression may recursively invoke
-  // parseConditionalExpression.
-  CHECK_RECURSION;
-
   // Only try with AllowTypedArrowFunction::No if we haven't already set
   // up the consequent using AllowTypedArrowFunction::Yes.
   if (!consequent) {
     // Consume the '?' (either for the first time or after savePoint.restore()).
     advance();
+    CHECK_RECURSION;
     auto optConsequent = parseAssignmentExpression(
         ParamIn, AllowTypedArrowFunction::No, CoverTypedParameters::No);
     if (!optConsequent)
@@ -4889,10 +4883,10 @@ Optional<ESTree::Node *> JSParserImpl::parseClassElement(
     return None;
 
   ESTree::Node *returnType = nullptr;
-#if HERMES_PARSE_FLOW || HERMES_PARSE_TS
-  if (context_.getParseTypes() && check(TokenKind::colon)) {
+#if HERMES_PARSE_FLOW
+  if (context_.getParseFlow() && check(TokenKind::colon)) {
     SMLoc annotStart = advance(JSLexer::GrammarContext::Type).Start;
-    auto optRet = parseTypeAnnotation(annotStart);
+    auto optRet = parseTypeAnnotationFlow(annotStart);
     if (!optRet)
       return None;
     returnType = *optRet;
@@ -5181,9 +5175,6 @@ Optional<ESTree::Node *> JSParserImpl::parseArrowFunctionExpression(
     body = *optBody;
     expression = false;
   } else {
-    // It's possible to recurse onto parseAssignmentExpression directly
-    // and get stuck without a depth check if we don't have one here.
-    CHECK_RECURSION;
     auto optConcise = parseAssignmentExpression(
         param.get(ParamIn),
         allowTypedArrowFunction,

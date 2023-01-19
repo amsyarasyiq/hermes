@@ -30,27 +30,27 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
+              "specifiers": Array [
+                Object {
                   "importKind": null,
-                  "imported": {
+                  "imported": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
                     "typeAnnotation": null,
                   },
-                  "local": {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -106,20 +106,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -174,20 +174,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -242,20 +242,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -263,15 +263,15 @@ describe('ImportDeclaration', () => {
                   },
                   "type": "ImportDefaultSpecifier",
                 },
-                {
+                Object {
                   "importKind": null,
-                  "imported": {
+                  "imported": Object {
                     "name": "Bar",
                     "optional": false,
                     "type": "Identifier",
                     "typeAnnotation": null,
                   },
-                  "local": {
+                  "local": Object {
                     "name": "Bar",
                     "optional": false,
                     "type": "Identifier",
@@ -334,20 +334,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -355,8 +355,8 @@ describe('ImportDeclaration', () => {
                   },
                   "type": "ImportDefaultSpecifier",
                 },
-                {
-                  "local": {
+                Object {
+                  "local": Object {
                     "name": "Bar",
                     "optional": false,
                     "type": "Identifier",
@@ -421,27 +421,27 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "value",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
+              "specifiers": Array [
+                Object {
                   "importKind": "type",
-                  "imported": {
+                  "imported": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
                     "typeAnnotation": null,
                   },
-                  "local": {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -449,15 +449,15 @@ describe('ImportDeclaration', () => {
                   },
                   "type": "ImportSpecifier",
                 },
-                {
+                Object {
                   "importKind": "typeof",
-                  "imported": {
+                  "imported": Object {
                     "name": "Bar",
                     "optional": false,
                     "type": "Identifier",
                     "typeAnnotation": null,
                   },
-                  "local": {
+                  "local": Object {
                     "name": "Bar",
                     "optional": false,
                     "type": "Identifier",
@@ -524,20 +524,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "type",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",
@@ -595,20 +595,20 @@ describe('ImportDeclaration', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "assertions": [],
+        Object {
+          "body": Array [
+            Object {
+              "assertions": Array [],
               "importKind": "typeof",
-              "source": {
+              "source": Object {
                 "literalType": "string",
                 "raw": "'Foo'",
                 "type": "Literal",
                 "value": "Foo",
               },
-              "specifiers": [
-                {
-                  "local": {
+              "specifiers": Array [
+                Object {
+                  "local": Object {
                     "name": "Foo",
                     "optional": false,
                     "type": "Identifier",

@@ -89,7 +89,7 @@ JSONString *JSONFactory::getString(UniqueString *lit) {
   return res;
 }
 
-JSONString *JSONFactory::getString(llvh::StringRef str) {
+JSONString *JSONFactory::getString(StringRef str) {
   return getString(strTab_.getString(str));
 }
 

@@ -38,18 +38,18 @@ describe('IndexedAccessType', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "id": {
+        Object {
+          "body": Array [
+            Object {
+              "id": Object {
                 "name": "T",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "right": {
-                "indexType": {
-                  "id": {
+              "right": Object {
+                "indexType": Object {
+                  "id": Object {
                     "name": "k",
                     "optional": false,
                     "type": "Identifier",
@@ -58,8 +58,8 @@ describe('IndexedAccessType', () => {
                   "type": "GenericTypeAnnotation",
                   "typeParameters": null,
                 },
-                "objectType": {
-                  "id": {
+                "objectType": Object {
+                  "id": Object {
                     "name": "O",
                     "optional": false,
                     "type": "Identifier",
@@ -119,18 +119,18 @@ describe('IndexedAccessType', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "id": {
+        Object {
+          "body": Array [
+            Object {
+              "id": Object {
                 "name": "T",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "right": {
-                "indexType": {
-                  "id": {
+              "right": Object {
+                "indexType": Object {
+                  "id": Object {
                     "name": "k",
                     "optional": false,
                     "type": "Identifier",
@@ -139,8 +139,8 @@ describe('IndexedAccessType', () => {
                   "type": "GenericTypeAnnotation",
                   "typeParameters": null,
                 },
-                "objectType": {
-                  "id": {
+                "objectType": Object {
+                  "id": Object {
                     "name": "O",
                     "optional": false,
                     "type": "Identifier",

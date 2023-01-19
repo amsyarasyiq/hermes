@@ -53,10 +53,12 @@ class SynthBenchmarkTestFixture : public ::testing::TestWithParam<ParamType> {
   /// -- specify property names as string IDs, or as PropNameIDs.
   /// The traces use the convention of creating fake
   /// "CreatePropNameRecords".  These are translated either into
-  /// CreateStringRecords or CreatePropNameIDRecords, via string substitution.
-  /// Similarly, property IDs are tagged with the type "propIDTag",
-  /// which is also replaced via string substitution.  This method is then
-  /// run on the translated trace.
+  /// CreateStringRecords or CreatePropeNameIDRecords, via regex
+  /// replacement.  The references to these are specified as StringIDs,
+  /// and are translated for the PropNameID case.  (We can't do this
+  /// trick for creation, because some CreateStringRecords should not
+  /// be translated to PropNameID.)
+  /// This method is then run on the translated trace.
   void canRunWithoutException(const std::string &trace) {
     tracing::TraceInterpreter::ExecuteOptions options;
     std::vector<std::unique_ptr<llvh::MemoryBuffer>> sources;
@@ -86,7 +88,6 @@ TEST_P(SynthBenchmarkTestFixture, CanRunWithoutExceptionString) {
   // Convert CreatePropNameRecords to CreateStringRecords.
   std::string stringNameIDTrace{trace_};
   subst("CreatePropNameRecord", "CreateStringRecord", stringNameIDTrace);
-  subst("\"propIDTag:", "\"string:", stringNameIDTrace);
   canRunWithoutException(stringNameIDTrace);
 }
 
@@ -94,7 +95,6 @@ TEST_P(SynthBenchmarkTestFixture, CanRunWithoutExceptionPropNameID) {
   // Convert CreatePropNameRecords to CreatePropNameIDRecords.
   std::string propNameIDTrace{trace_};
   subst("CreatePropNameRecord", "CreatePropNameIDRecord", propNameIDTrace);
-  subst("\"propIDTag:", "\"propNameID:", propNameIDTrace);
   canRunWithoutException(propNameIDTrace);
 }
 

@@ -34,7 +34,7 @@ const char *nativePropertyNamesTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:22",
+      "propID": 22,
       "propName": "hostObj1",
       "value": "object:10"
     },
@@ -53,7 +53,7 @@ const char *nativePropertyNamesTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:23",
+      "propID": 23,
       "propName": "hostObj2",
       "value": "object:11"
     },
@@ -76,7 +76,7 @@ const char *nativePropertyNamesTrace() {
       "type": "GetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:24",
+      "propID": 24,
       "propName": "jsFunc",
       "value": "object:12"
     },

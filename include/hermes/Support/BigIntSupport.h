@@ -20,11 +20,7 @@
 #include <optional>
 #include <string>
 #include <vector>
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 namespace hermes {
 namespace bigint {
 
@@ -68,49 +64,37 @@ std::optional<std::string> getNumericValueDigits(
 using SignedBigIntDigitType = int64_t;
 using BigIntDigitType = uint64_t;
 
-inline constexpr uint32_t BigIntDigitSizeInBytes =
-    static_cast<uint32_t>(sizeof(BigIntDigitType));
-inline constexpr uint32_t BigIntDigitSizeInBits = BigIntDigitSizeInBytes * 8;
+static constexpr size_t BigIntDigitSizeInBytes = sizeof(BigIntDigitType);
+static constexpr size_t BigIntDigitSizeInBits = BigIntDigitSizeInBytes * 8;
 
 /// Arbitrary upper limit on number of Digits a bigint may have.
-inline constexpr uint32_t BigIntMaxSizeInDigits =
-    0x400; // 1k digits == 8k bytes
-
-/// Arbitrary upper limit on number of bytes a bigint may have.
-inline constexpr uint32_t BigIntMaxSizeInBytes =
-    BigIntDigitSizeInBytes * BigIntMaxSizeInDigits;
+static constexpr size_t BigIntMaxSizeInDigits = 0x400; // 1k digits == 8k bytes
 
 /// Helper function that should be called before allocating a Digits array on
 /// the stack.
-inline constexpr bool tooManyDigits(uint32_t numDigits) {
+inline constexpr bool tooManyDigits(unsigned numDigits) {
   return BigIntMaxSizeInDigits < numDigits;
 }
 
-/// Helper function that returns if the given number of bytes exceeds the
-/// maximum BigInt size in bytes.
-inline constexpr bool tooManyBytes(uint32_t numBytes) {
-  return BigIntMaxSizeInBytes < numBytes;
-}
-
 /// \return number of BigInt digits to represent \p v bits.
-inline uint32_t numDigitsForSizeInBits(uint32_t v) {
-  return static_cast<uint32_t>(llvh::alignTo(v, BigIntDigitSizeInBits)) /
+inline size_t numDigitsForSizeInBits(uint32_t v) {
+  return static_cast<size_t>(llvh::alignTo(v, BigIntDigitSizeInBits)) /
       BigIntDigitSizeInBits;
 }
 
 /// \return number of BigInt digits to represent \p v bytes.
-inline uint32_t numDigitsForSizeInBytes(uint32_t v) {
-  return static_cast<uint32_t>(llvh::alignTo(v, BigIntDigitSizeInBytes)) /
+inline size_t numDigitsForSizeInBytes(uint32_t v) {
+  return static_cast<size_t>(llvh::alignTo(v, BigIntDigitSizeInBytes)) /
       BigIntDigitSizeInBytes;
 }
 
 /// \return how many chars in base \p radix fit a BigIntDigitType.
-inline uint32_t constexpr maxCharsPerDigitInRadix(uint8_t radix) {
+inline unsigned constexpr maxCharsPerDigitInRadix(uint8_t radix) {
   // To compute the lower bound of bits in a BigIntDigitType "covered" by a
   // char. For power of 2 radixes, it is known (exactly) that each character
   // covers log2(radix) bits. For non-power of 2 radixes, a lower bound is
-  // log2(greatest power of 2 that is less than radix).
-  uint32_t minNumBitsPerChar = radix < 4 ? 1
+  // log2(greates power of 2 that is less than radix).
+  unsigned minNumBitsPerChar = radix < 4 ? 1
       : radix < 8                        ? 2
       : radix < 16                       ? 3
       : radix < 32                       ? 4
@@ -119,7 +103,7 @@ inline uint32_t constexpr maxCharsPerDigitInRadix(uint8_t radix) {
   // With minNumBitsPerChar being the lower bound estimate of how many bits each
   // char can represent, the upper bound of how many chars "fit" in a bigint
   // digit is ceil(sizeofInBits(bigint digit) / minNumBitsPerChar).
-  uint32_t numCharsPerDigits = BigIntDigitSizeInBits / (1 << minNumBitsPerChar);
+  unsigned numCharsPerDigits = BigIntDigitSizeInBits / (1 << minNumBitsPerChar);
 
   return numCharsPerDigits;
 }
@@ -133,7 +117,7 @@ llvh::ArrayRef<uint8_t> dropExtraSignBits(llvh::ArrayRef<uint8_t> src);
 /// byte. I.e., returns 0 if \p value is 0b0xxx....xxx, and ~0, if \p value is
 /// 0x1xxx....xxx.
 template <typename D, typename T, typename UT = std::make_unsigned_t<T>>
-inline constexpr std::enable_if_t<std::is_integral_v<T>, D> getSignExtValue(
+static constexpr std::enable_if_t<std::is_integral_v<T>, D> getSignExtValue(
     const T &value) {
   uint32_t UnsignedTSizeInBits = sizeof(UT) * 8;
   UT unsignedValue = value;
@@ -274,12 +258,8 @@ std::string toString(ImmutableBigIntRef src, uint8_t radix);
 OperationStatus
 toString(std::string &out, llvh::ArrayRef<uint8_t> bytes, uint8_t radix);
 
-/// Computes number of digits needed to perform asUintN(\p n, \p src), storing
-/// the result in \p resultSize.
-/// \returns OperationStatus::TOO_MANY_DIGITS if the result would be too large
-/// to represent; and OperationStatus::RETURNED otherwise.
-OperationStatus
-asUintNResultSize(uint64_t n, ImmutableBigIntRef src, uint32_t &resultSize);
+/// \return number of digits needed to perform asUintN(\p n, \p src).
+uint32_t asUintNResultSize(uint64_t n, ImmutableBigIntRef src);
 
 /// \return \p src % (2n ** \p n), zero extended.
 OperationStatus
@@ -296,18 +276,6 @@ asIntN(MutableBigIntRef dst, uint64_t n, ImmutableBigIntRef src);
 /// value : zero.
 int compare(ImmutableBigIntRef lhs, ImmutableBigIntRef rhs);
 int compare(ImmutableBigIntRef lhs, SignedBigIntDigitType rhs);
-
-/// \return Whether \p src can be losslessly truncated to a single
-/// SignedBigIntDigitType (if signedTruncation == true) or BigIntDigitType
-/// (signedTruncation == false) digit.
-bool isSingleDigitTruncationLossless(
-    ImmutableBigIntRef src,
-    bool signedTruncation);
-
-/// \return The first digit in \p src, or 0 if src.numDigits == 0.
-inline BigIntDigitType truncateToSingleDigit(ImmutableBigIntRef src) {
-  return src.numDigits == 0 ? 0 : src.digits[0];
-}
 
 /// \return number of digits needed to perform \p - src
 uint32_t unaryMinusResultSize(ImmutableBigIntRef src);
@@ -500,6 +468,5 @@ class UniquingBigIntTable {
 
 } // namespace bigint
 } // namespace hermes
-#pragma GCC diagnostic pop
 
 #endif // HERMES_SUPPORT_BIGINT_H

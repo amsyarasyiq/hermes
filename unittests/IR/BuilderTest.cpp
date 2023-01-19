@@ -28,10 +28,7 @@ TEST(BuilderTest, SimpleSmokeTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "main",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "main", Function::DefinitionKind::ES5Function, true);
   auto BB = Builder.createBasicBlock(F);
   Builder.createParameter(F, "argc");
   Builder.createParameter(F, "argv");
@@ -54,10 +51,7 @@ TEST(BuilderTest, BuildCFG) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "forEach",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "forEach", Function::DefinitionKind::ES5Function, true);
   auto Arg1 = Builder.createParameter(F, "num");
   auto Arg2 = Builder.createParameter(F, "value");
 
@@ -84,10 +78,7 @@ TEST(BuilderTest, ReplaceAllUsesWith) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testRAUW",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testRAUW", Function::DefinitionKind::ES5Function, true);
   auto Cond = Builder.createParameter(F, "cond");
   auto Arg2 = Builder.createParameter(F, "two");
   auto Arg3 = Builder.createParameter(F, "three");
@@ -170,10 +161,7 @@ TEST(BuilderTest, TestValueTypes) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "a_function_with_tests",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "a_function_with_tests", Function::DefinitionKind::ES5Function, true);
 
   auto Cond = Builder.createParameter(F, "cond");
   Cond->setType(Type::createBoolean());
@@ -251,10 +239,7 @@ TEST(BuilderTest, CreateAndManipulateFrameTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "a_function_with_a_scope",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "a_function_with_a_scope", Function::DefinitionKind::ES5Function, true);
 
   Builder.createParameter(F, "cond");
 
@@ -281,15 +266,9 @@ TEST(BuilderTest, NestedFunctionFrameTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto Caller = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "caller",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "caller", Function::DefinitionKind::ES5Function, true);
   auto Callee = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "callee",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "callee", Function::DefinitionKind::ES5Function, true);
 
   Builder.setInsertionBlock(Builder.createBasicBlock(Caller));
   auto A0 = Builder.createAllocStackInst("one");
@@ -313,10 +292,7 @@ TEST(BuilderTest, LiteralsTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testRAUW",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testRAUW", Function::DefinitionKind::ES5Function, true);
   Builder.createParameter(F, "cond");
   Builder.createParameter(F, "two");
   Builder.createParameter(F, "three");
@@ -390,10 +366,7 @@ TEST(BuilderTest, PropertyTest) {
   IRBuilder Builder(&M);
 
   auto *F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testProperties",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testProperties", Function::DefinitionKind::ES5Function, true);
   auto *O = Builder.createParameter(F, "object");
   auto *P = Builder.createParameter(F, "property");
 

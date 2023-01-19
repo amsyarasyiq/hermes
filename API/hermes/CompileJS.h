@@ -8,7 +8,6 @@
 #ifndef HERMES_COMPILEJS_H
 #define HERMES_COMPILEJS_H
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,15 +44,13 @@ class DiagnosticHandler {
 /// \param emitAsyncBreakCheck this will make the bytecode interruptable.
 /// \param diagHandler if not null, receives any and all errors, warnings and
 ///   notes produced during compilation.
-/// \param sourceMapBuf optional source map string.
 bool compileJS(
     const std::string &str,
     const std::string &sourceURL,
     std::string &bytecode,
     bool optimize,
     bool emitAsyncBreakCheck,
-    DiagnosticHandler *diagHandler,
-    std::optional<std::string_view> sourceMapBuf = std::nullopt);
+    DiagnosticHandler *diagHandler);
 
 bool compileJS(
     const std::string &str,

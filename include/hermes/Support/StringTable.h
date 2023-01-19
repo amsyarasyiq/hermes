@@ -19,35 +19,37 @@ class raw_ostream;
 
 namespace hermes {
 
+using llvh::StringRef;
+
 /// Allocate a StringRef with a '\0' following after the end.
 template <class Allocator>
-llvh::StringRef zeroTerminate(Allocator &allocator, llvh::StringRef str) {
+StringRef zeroTerminate(Allocator &allocator, StringRef str) {
   // Allocate a copy of the name, adding a trailing \0 for convenience.
   auto *s = allocator.template Allocate<char>(str.size() + 1);
   auto end = std::copy(str.begin(), str.end(), s);
   *end = 0; // Zero terminate string.
 
   // NOTE: returning the original size.
-  return llvh::StringRef(s, str.size());
+  return StringRef(s, str.size());
 }
 
 class UniqueString {
-  const llvh::StringRef str_;
+  const StringRef str_;
 
   UniqueString(const UniqueString &) = delete;
   UniqueString &operator=(const UniqueString &) = delete;
 
  public:
-  explicit UniqueString(llvh::StringRef str) : str_(str){};
+  explicit UniqueString(StringRef str) : str_(str){};
 
-  const llvh::StringRef &str() const {
+  const StringRef &str() const {
     return str_;
   }
   const char *c_str() const {
     return str_.begin();
   }
 
-  explicit operator llvh::StringRef() const {
+  explicit operator StringRef() const {
     return str_;
   }
 };
@@ -88,7 +90,7 @@ class Identifier {
     return !(*this == RHS);
   }
 
-  const llvh::StringRef &str() const {
+  const StringRef &str() const {
     return ptr_->str();
   }
   const char *c_str() const {
@@ -98,6 +100,7 @@ class Identifier {
 
 llvh::raw_ostream &operator<<(llvh::raw_ostream &os, Identifier id);
 
+using llvh::StringRef;
 /// Encapsulates a table of unique zero-terminated strings. Unlike
 /// llvh::StringMap it gives us access to the string itself and also provides
 /// convenient zero termination.
@@ -105,7 +108,7 @@ class StringTable {
   using Allocator = hermes::BumpPtrAllocator;
   Allocator &allocator_;
 
-  llvh::DenseMap<llvh::StringRef, UniqueString *> strMap_{};
+  llvh::DenseMap<StringRef, UniqueString *> strMap_{};
 
   StringTable(const StringTable &) = delete;
   StringTable &operator=(const StringTable &_) = delete;
@@ -114,7 +117,7 @@ class StringTable {
   explicit StringTable(Allocator &allocator) : allocator_(allocator){};
 
   /// Return a unique zero-terminated copy of the supplied string \p name.
-  UniqueString *getString(llvh::StringRef name) {
+  UniqueString *getString(StringRef name) {
     // Already in the map?
     auto it = strMap_.find(name);
     if (it != strMap_.end())
@@ -128,7 +131,7 @@ class StringTable {
   }
 
   /// A wrapper arond getString() returning an Identifier.
-  Identifier getIdentifier(llvh::StringRef name) {
+  Identifier getIdentifier(StringRef name) {
     return Identifier::getFromPointer(getString(name));
   }
 };

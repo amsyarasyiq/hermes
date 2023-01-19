@@ -5,8 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermes -O0 -dump-ast %s | %FileCheck %s --check-prefix=CHKAST
-// RUN: %hermes -O0 -dump-ir %s | %FileCheck %s --check-prefix=CHKIR
+// RUN: %hermes -O0 -dump-ir %s | %FileCheck %s --match-full-lines
 
 // This test ensures that a very large numeric literal can be parsed as
 // Infinity.
@@ -15,21 +14,10 @@
 
 55e55555555555555555555555555555555555;
 
-//CHKAST:{
-//CHKAST-NEXT:  "type": "Program",
-//CHKAST-NEXT:  "body": [
-//CHKAST-NEXT:    {
-//CHKAST-NEXT:      "type": "ExpressionStatement",
-//CHKAST-NEXT:      "expression": {
-//CHKAST-NEXT:        "type": "NumericLiteral",
-//CHKAST-NEXT:        "value": null,
-//CHKAST-NEXT:        "raw": "55e55555555555555555555555555555555555"
-//CHKAST-NEXT:      },
-//CHKAST-NEXT:      "directive": null
-//CHKAST-NEXT:    }
-//CHKAST-NEXT:  ]
-//CHKAST-NEXT:}
+// CHECK-LABEL: function global()
+// CHECK-NEXT: frame = []
+// CHECK-NEXT: %BB0:
+// CHECK-NEXT:   %0 = AllocStackInst $?anon_0_ret
+// CHECK-NEXT:   %1 = StoreStackInst undefined : undefined, %0
+// CHECK-NEXT:   %2 = StoreStackInst Infinity : number, %0
 
-// CHKIR-LABEL: %BB0:
-// CHKIR:   %[[RETVAL:[0-9]+]] = AllocStackInst $?anon_0_ret
-// CHKIR:   %{{[0-9]+}} = StoreStackInst Infinity : number, %[[RETVAL]]

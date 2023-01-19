@@ -11,23 +11,17 @@
 #include "hermes/BCGen/HBC/BytecodeFileFormat.h"
 #include "hermes/BCGen/HBC/DebugInfo.h"
 #include "hermes/Public/Buffer.h"
-#include "hermes/Regex/RegexSerialization.h"
 #include "hermes/SourceMap/SourceMapGenerator.h"
 #include "hermes/Support/BigIntSupport.h"
 #include "hermes/Support/OSCompat.h"
 #include "hermes/Support/PageAccessTracker.h"
+#include "hermes/Support/RegExpSerialization.h"
 #include "hermes/Support/StringTableEntry.h"
 
 #include "llvh/ADT/ArrayRef.h"
 
 #include <atomic>
 #include <thread>
-
-#pragma GCC diagnostic push
-
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 
 namespace hermes {
 namespace hbc {
@@ -518,6 +512,5 @@ class BCProviderFromBuffer final : public BCProviderBase {
 
 } // namespace hbc
 } // namespace hermes
-#pragma GCC diagnostic pop
 
 #endif // HERMES_BCGEN_HBC_BYTECODEDATAPROVIDER_H

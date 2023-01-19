@@ -14,7 +14,6 @@
 #include "hermes/IRGen/IRGen.h"
 #include "hermes/Support/Conversions.h"
 #include "hermes/Support/PerfSection.h"
-#include "hermes/Support/SimpleDiagHandler.h"
 #include "hermes/VM/GCPointer-inline.h"
 #include "hermes/VM/Runtime.h"
 #include "hermes/VM/RuntimeModule.h"
@@ -289,17 +288,6 @@ OptValue<uint32_t> CodeBlock::getDebugLexicalDataOffset() const {
   return ret;
 }
 
-OptValue<uint32_t> CodeBlock::getTextifiedCalleeOffset() const {
-  auto *debugOffsets =
-      runtimeModule_->getBytecode()->getDebugOffsets(functionID_);
-  if (!debugOffsets)
-    return llvh::None;
-  uint32_t ret = debugOffsets->textifiedCallees;
-  if (ret == hbc::DebugOffsets::NO_OFFSET)
-    return llvh::None;
-  return ret;
-}
-
 SourceErrorManager::SourceCoords CodeBlock::getLazyFunctionLoc(
     bool start) const {
   assert(isLazy() && "Function must be lazy");
@@ -342,23 +330,13 @@ std::unique_ptr<hbc::BytecodeModule> compileLazyFunction(
 }
 } // namespace
 
-ExecutionStatus CodeBlock::lazyCompileImpl(Runtime &runtime) {
+void CodeBlock::lazyCompileImpl(Runtime &runtime) {
   assert(isLazy() && "Laziness has not been checked");
   PerfSection perf("Lazy function compilation");
   auto *provider = (hbc::BCProviderLazy *)runtimeModule_->getBytecode();
   auto *func = provider->getBytecodeFunction();
   auto *lazyData = func->getLazyCompilationData();
-  SourceErrorManager &manager = lazyData->context->getSourceErrorManager();
-  SimpleDiagHandlerRAII outputManager{manager};
   auto bcModule = compileLazyFunction(lazyData);
-
-  if (manager.getErrorCount()) {
-    // Raise a SyntaxError to be consistent with eval().
-    return runtime.raiseSyntaxError(
-        llvh::StringRef{outputManager.getErrorString()});
-  }
-
-  assert(bcModule && "No errors, yet no bcModule");
 
   runtimeModule_->initializeLazyMayAllocate(
       hbc::BCProviderFromSrc::createBCProviderFromSrc(std::move(bcModule)));
@@ -368,8 +346,6 @@ ExecutionStatus CodeBlock::lazyCompileImpl(Runtime &runtime) {
   functionHeader_ =
       runtimeModule_->getBytecode()->getFunctionHeader(functionID_);
   bytecode_ = runtimeModule_->getBytecode()->getBytecode(functionID_);
-
-  return ExecutionStatus::RETURNED;
 }
 #endif // HERMESVM_LEAN
 

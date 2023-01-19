@@ -15,15 +15,6 @@ print('promise');
 print(HermesInternal.hasPromise())
 // CHECK-NEXT: true
 
-print('all' in Promise);
-// CHECK-NEXT: true
-
-print('allSettled' in Promise);
-// CHECK-NEXT: true
-
-print('any' in Promise);
-// CHECK-NEXT: true
-
 var promise = new Promise(function(res, rej) {
   res('success!');
 });

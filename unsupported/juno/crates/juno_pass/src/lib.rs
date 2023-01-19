@@ -14,4 +14,3 @@ pub use manager::Pass;
 pub use manager::PassManager;
 
 mod passes;
-pub use passes::*;

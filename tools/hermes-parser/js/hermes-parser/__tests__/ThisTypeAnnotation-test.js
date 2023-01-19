@@ -40,37 +40,37 @@ describe('ThisTypeAnnotation', () => {
 
   test('ESTree', () => {
     expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
-            "id": {
+      Object {
+        "body": Array [
+          Object {
+            "id": Object {
               "name": "t1",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "right": {
+            "right": Object {
               "type": "ThisTypeAnnotation",
             },
             "type": "TypeAlias",
             "typeParameters": null,
           },
-          {
-            "id": {
+          Object {
+            "id": Object {
               "name": "t3",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "right": {
-              "id": {
-                "id": {
+            "right": Object {
+              "id": Object {
+                "id": Object {
                   "name": "this",
                   "optional": false,
                   "type": "Identifier",
                   "typeAnnotation": null,
                 },
-                "qualification": {
+                "qualification": Object {
                   "name": "T",
                   "optional": false,
                   "type": "Identifier",
@@ -84,22 +84,22 @@ describe('ThisTypeAnnotation', () => {
             "type": "TypeAlias",
             "typeParameters": null,
           },
-          {
-            "id": {
+          Object {
+            "id": Object {
               "name": "t4",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "right": {
-              "id": {
-                "id": {
+            "right": Object {
+              "id": Object {
+                "id": Object {
                   "name": "T",
                   "optional": false,
                   "type": "Identifier",
                   "typeAnnotation": null,
                 },
-                "qualification": {
+                "qualification": Object {
                   "name": "this",
                   "optional": false,
                   "type": "Identifier",
@@ -163,27 +163,27 @@ describe('ThisTypeAnnotation', () => {
 
     test('ESTree', () => {
       expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-        {
-          "body": [
-            {
-              "id": {
+        Object {
+          "body": Array [
+            Object {
+              "id": Object {
                 "name": "t2",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "right": {
-                "id": {
+              "right": Object {
+                "id": Object {
                   "name": "this",
                   "optional": false,
                   "type": "Identifier",
                   "typeAnnotation": null,
                 },
                 "type": "GenericTypeAnnotation",
-                "typeParameters": {
-                  "params": [
-                    {
-                      "id": {
+                "typeParameters": Object {
+                  "params": Array [
+                    Object {
+                      "id": Object {
                         "name": "T",
                         "optional": false,
                         "type": "Identifier",
@@ -276,41 +276,41 @@ describe('ThisTypeAnnotation as a function parameter', () => {
     `;
 
     expect(parseForSnapshot(source)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
+      Object {
+        "body": Array [
+          Object {
             "async": false,
-            "body": {
-              "body": [],
+            "body": Object {
+              "body": Array [],
               "type": "BlockStatement",
             },
             "expression": false,
             "generator": false,
-            "id": {
+            "id": Object {
               "name": "f1",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "params": [
-              {
+            "params": Array [
+              Object {
                 "name": "this",
                 "optional": false,
                 "type": "Identifier",
-                "typeAnnotation": {
+                "typeAnnotation": Object {
                   "type": "TypeAnnotation",
-                  "typeAnnotation": {
+                  "typeAnnotation": Object {
                     "type": "StringTypeAnnotation",
                   },
                 },
               },
-              {
+              Object {
                 "name": "param",
                 "optional": false,
                 "type": "Identifier",
-                "typeAnnotation": {
+                "typeAnnotation": Object {
                   "type": "TypeAnnotation",
-                  "typeAnnotation": {
+                  "typeAnnotation": Object {
                     "type": "NumberTypeAnnotation",
                   },
                 },
@@ -321,41 +321,41 @@ describe('ThisTypeAnnotation as a function parameter', () => {
             "type": "FunctionDeclaration",
             "typeParameters": null,
           },
-          {
+          Object {
             "directive": null,
-            "expression": {
+            "expression": Object {
               "async": false,
-              "body": {
-                "body": [],
+              "body": Object {
+                "body": Array [],
                 "type": "BlockStatement",
               },
               "expression": false,
               "generator": false,
-              "id": {
+              "id": Object {
                 "name": "f2",
                 "optional": false,
                 "type": "Identifier",
                 "typeAnnotation": null,
               },
-              "params": [
-                {
+              "params": Array [
+                Object {
                   "name": "this",
                   "optional": false,
                   "type": "Identifier",
-                  "typeAnnotation": {
+                  "typeAnnotation": Object {
                     "type": "TypeAnnotation",
-                    "typeAnnotation": {
+                    "typeAnnotation": Object {
                       "type": "StringTypeAnnotation",
                     },
                   },
                 },
-                {
+                Object {
                   "name": "param",
                   "optional": false,
                   "type": "Identifier",
-                  "typeAnnotation": {
+                  "typeAnnotation": Object {
                     "type": "TypeAnnotation",
-                    "typeAnnotation": {
+                    "typeAnnotation": Object {
                       "type": "NumberTypeAnnotation",
                     },
                   },

@@ -76,7 +76,6 @@ std::pair<Function *, Function *> generateLazyFunctionIR(
 
     auto *error = ESTreeIRGen::genSyntaxErrorFunction(
         M,
-        M->getInitialScope()->createInnerScope(),
         lazyData->originalName,
         lazyData->span,
         diagHandler.getErrorString());

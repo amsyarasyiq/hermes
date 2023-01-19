@@ -108,7 +108,6 @@ bool ResolveStaticRequireImpl::run() {
     builder_.setInsertionPointAfter(RR.call);
 
     builder_.setLocation(RR.call->getLocation());
-    builder_.setCurrentSourceLevelScope(RR.call->getSourceLevelScope());
 
     /// (CallBuiltin "requireFast", resolvedTarget)
     auto callHI = builder_.createCallBuiltinInst(
@@ -296,7 +295,7 @@ void ResolveStaticRequireImpl::resolveRequireCall(
 /// This assumes that the target is given relative to the current dirname.
 static void canonicalizePath(
     llvh::SmallVectorImpl<char> &dirname,
-    llvh::StringRef target) {
+    StringRef target) {
   if (!target.empty() && target[0] == '/') {
     // If the target is absolute (starts with a '/'), resolve from the module
     // root (disregard the dirname).

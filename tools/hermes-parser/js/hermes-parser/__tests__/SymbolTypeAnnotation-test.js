@@ -32,16 +32,16 @@ describe('Symbol type annotation', () => {
 
   test('ESTree', () => {
     expect(parseForSnapshot(testCase.code)).toMatchInlineSnapshot(`
-      {
-        "body": [
-          {
-            "id": {
+      Object {
+        "body": Array [
+          Object {
+            "id": Object {
               "name": "T",
               "optional": false,
               "type": "Identifier",
               "typeAnnotation": null,
             },
-            "right": {
+            "right": Object {
               "type": "SymbolTypeAnnotation",
             },
             "type": "TypeAlias",

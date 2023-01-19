@@ -13,11 +13,7 @@
 #include "llvh/Support/MathExtras.h"
 
 #include <cstdlib>
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 namespace hermes {
 namespace vm {
 
@@ -98,12 +94,8 @@ CallResult<HermesValue> BigIntPrimitive::asUintN(
     return BigIntPrimitive::fromSigned(runtime, 0);
   }
 
-  uint32_t numDigits;
-  bigint::OperationStatus status =
-      bigint::asUintNResultSize(n, src->getImmutableRef(runtime), numDigits);
-  if (LLVM_UNLIKELY(status != bigint::OperationStatus::RETURNED)) {
-    return raiseOnError(runtime, status);
-  }
+  const uint32_t numDigits =
+      bigint::asUintNResultSize(n, src->getImmutableRef(runtime));
   return unaryOp(
       runtime, makeTruncAdapter<&bigint::asUintN>(n), src, numDigits);
 }

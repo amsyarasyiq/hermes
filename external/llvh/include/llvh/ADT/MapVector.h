@@ -13,6 +13,7 @@
 // a std::vector.
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef LLVM_ADT_MAPVECTOR_H
 #define LLVM_ADT_MAPVECTOR_H
 
@@ -25,12 +26,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#pragma GCC diagnostic push
-
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 
 namespace llvh {
 
@@ -241,7 +236,5 @@ struct SmallMapVector
 };
 
 } // end namespace llvh
-
-#pragma GCC diagnostic pop
 
 #endif // LLVM_ADT_MAPVECTOR_H

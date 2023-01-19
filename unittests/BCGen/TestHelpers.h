@@ -12,22 +12,19 @@
 
 #include <stdint.h>
 #include <vector>
-#include "hermes/BCGen/HBC/HBC.h"
 #include "llvh/ADT/SmallVector.h"
 
 namespace hermes {
 
-/// Compile source code \p source into Hermes bytecode module, asserting that it
-/// can be compiled successfully. \return the bytecode module.
-std::unique_ptr<hbc::BytecodeModule> bytecodeModuleForSource(
-    const char *source,
-    BytecodeGenerationOptions opts = BytecodeGenerationOptions::defaults());
+struct TestCompileFlags {
+  bool staticBuiltins{false};
+};
 
 /// Compile source code \p source into Hermes bytecode, asserting that it can be
 /// compiled successfully. \return the bytecode as a vector of bytes.
 std::vector<uint8_t> bytecodeForSource(
     const char *source,
-    BytecodeGenerationOptions opts = BytecodeGenerationOptions::defaults());
+    TestCompileFlags flags = TestCompileFlags());
 
 } // namespace hermes
 

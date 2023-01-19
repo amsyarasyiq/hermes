@@ -236,11 +236,8 @@ BCProviderFromSrc::createBCProviderFromSrcImpl(
   opts.staticBuiltinsEnabled =
       context->getOptimizationSettings().staticBuiltins;
   opts.verifyIR = compileFlags.verifyIR;
-  auto BM = hbc::generateBytecodeModule(&M, M.getTopLevelFunction(), opts);
-  if (context->getSourceErrorManager().getErrorCount() > 0) {
-    return {nullptr, getErrorString()};
-  }
-  auto bytecode = createBCProviderFromSrc(std::move(BM));
+  auto bytecode = createBCProviderFromSrc(
+      hbc::generateBytecodeModule(&M, M.getTopLevelFunction(), opts));
   bytecode->singleFunction_ = isSingleFunctionExpression(parsed.getValue());
   return {std::move(bytecode), std::string{}};
 }

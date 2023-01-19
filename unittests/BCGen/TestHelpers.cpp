@@ -7,10 +7,12 @@
 
 #include "TestHelpers.h"
 #include "hermes/AST/SemValidate.h"
+#include "hermes/BCGen/HBC/HBC.h"
 #include "hermes/BCGen/HBC/TraverseLiteralStrings.h"
 #include "hermes/BCGen/HBC/UniquingStringLiteralTable.h"
 #include "hermes/IRGen/IRGen.h"
 #include "hermes/Parser/JSParser.h"
+#include "hermes/Utils/Options.h"
 #include "llvh/Support/SHA1.h"
 
 #include "gtest/gtest.h"
@@ -18,17 +20,17 @@
 using namespace hermes;
 using namespace hermes::hbc;
 
-/// Compile source code \p source into Hermes bytecode module.
-/// \return the bytecode module.
-std::unique_ptr<BytecodeModule> hermes::bytecodeModuleForSource(
+/// Compile source code \p source into Hermes bytecode.
+/// \return the bytecode as a vector of bytes.
+std::vector<uint8_t> hermes::bytecodeForSource(
     const char *source,
-    BytecodeGenerationOptions opts) {
+    TestCompileFlags flags) {
   /* Parse source */
   SourceErrorManager sm;
   CodeGenerationSettings codeGenOpts;
   codeGenOpts.unlimitedRegisters = false;
   OptimizationSettings optSettings;
-  optSettings.staticBuiltins = opts.staticBuiltinsEnabled;
+  optSettings.staticBuiltins = flags.staticBuiltins;
   auto context = std::make_shared<Context>(sm, codeGenOpts, optSettings);
   parser::JSParser jsParser(*context, source);
   auto parsed = jsParser.parse();
@@ -45,23 +47,16 @@ std::unique_ptr<BytecodeModule> hermes::bytecodeModuleForSource(
   hermes::generateIRFromESTree(ast, &M, declFileList, {});
 
   /* Generate bytecode module */
-  auto BM = generateBytecodeModule(&M, M.getTopLevelFunction(), opts);
+  auto bytecodeGenOpts = BytecodeGenerationOptions::defaults();
+  bytecodeGenOpts.staticBuiltinsEnabled = flags.staticBuiltins;
+  auto BM =
+      generateBytecodeModule(&M, M.getTopLevelFunction(), bytecodeGenOpts);
   assert(BM != nullptr && "Failed to generate bytecode module");
-
-  return BM;
-}
-
-/// Compile source code \p source into Hermes bytecode.
-/// \return the bytecode as a vector of bytes.
-std::vector<uint8_t> hermes::bytecodeForSource(
-    const char *source,
-    BytecodeGenerationOptions opts) {
-  auto BM = bytecodeModuleForSource(source, opts);
 
   /* Serialize it */
   llvh::SmallVector<char, 0> bytecodeVector;
   llvh::raw_svector_ostream OS(bytecodeVector);
-  BytecodeSerializer BS{OS, opts};
+  BytecodeSerializer BS{OS, bytecodeGenOpts};
   BS.serialize(
       *BM,
       llvh::SHA1::hash(llvh::ArrayRef<uint8_t>{

@@ -33,14 +33,14 @@ uint32_t BytecodeFunctionGenerator::addBigInt(bigint::ParsedBigInt bigint) {
   return BMGen_.addBigInt(std::move(bigint));
 }
 
-uint32_t BytecodeFunctionGenerator::addRegExp(CompiledRegExp *regexp) {
+uint32_t BytecodeFunctionGenerator::addRegExp(CompiledRegExp regexp) {
   assert(
       !complete_ &&
       "Cannot modify BytecodeFunction after call to bytecodeGenerationComplete.");
-  return BMGen_.addRegExp(regexp);
+  return BMGen_.addRegExp(std::move(regexp));
 }
 
-uint32_t BytecodeFunctionGenerator::addFilename(llvh::StringRef filename) {
+uint32_t BytecodeFunctionGenerator::addFilename(StringRef filename) {
   assert(
       !complete_ &&
       "Cannot modify BytecodeFunction after call to bytecodeGenerationComplete.");
@@ -78,6 +78,18 @@ void BytecodeFunctionGenerator::setJumpTable(
   assert(!jumpTable.empty() && "invoked with no jump table");
 
   jumpTable_ = std::move(jumpTable);
+}
+
+uint32_t BytecodeModuleGenerator::addArrayBuffer(ArrayRef<Literal *> elements) {
+  return literalGenerator_.serializeBuffer(elements, arrayBuffer_, false);
+}
+
+std::pair<uint32_t, uint32_t> BytecodeModuleGenerator::addObjectBuffer(
+    ArrayRef<Literal *> keys,
+    ArrayRef<Literal *> vals) {
+  return std::pair<uint32_t, uint32_t>{
+      literalGenerator_.serializeBuffer(keys, objKeyBuffer_, true),
+      literalGenerator_.serializeBuffer(vals, objValBuffer_, false)};
 }
 
 std::unique_ptr<BytecodeFunction>
@@ -205,16 +217,14 @@ void BytecodeModuleGenerator::setFunctionGenerator(
   assert(
       functionGenerators_.find(F) == functionGenerators_.end() &&
       "Adding same function twice.");
-  assert(
-      !BFG->hasEncodingError() && "Error should have been reported already.");
   functionGenerators_[F] = std::move(BFG);
 }
 
-unsigned BytecodeModuleGenerator::getStringID(llvh::StringRef str) const {
+unsigned BytecodeModuleGenerator::getStringID(StringRef str) const {
   return stringTable_.getStringID(str);
 }
 
-unsigned BytecodeModuleGenerator::getIdentifierID(llvh::StringRef str) const {
+unsigned BytecodeModuleGenerator::getIdentifierID(StringRef str) const {
   return stringTable_.getIdentifierID(str);
 }
 
@@ -228,25 +238,11 @@ uint32_t BytecodeModuleGenerator::addBigInt(bigint::ParsedBigInt bigint) {
   return bigIntTable_.addBigInt(std::move(bigint));
 }
 
-void BytecodeModuleGenerator::initializeSerializedLiterals(
-    std::vector<unsigned char> &&arrayBuffer,
-    std::vector<unsigned char> &&keyBuffer,
-    std::vector<unsigned char> &&valBuffer,
-    hermes::hbc::BytecodeModuleGenerator::LiteralOffsetMapTy &&offsetMap) {
-  assert(
-      arrayBuffer_.empty() && objKeyBuffer_.empty() && objValBuffer_.empty() &&
-      literalOffsetMap_.empty() && "serialized literals already initialized");
-  arrayBuffer_ = std::move(arrayBuffer);
-  objKeyBuffer_ = std::move(keyBuffer);
-  objValBuffer_ = std::move(valBuffer);
-  literalOffsetMap_ = std::move(offsetMap);
+uint32_t BytecodeModuleGenerator::addRegExp(CompiledRegExp regexp) {
+  return regExpTable_.addRegExp(std::move(regexp));
 }
 
-uint32_t BytecodeModuleGenerator::addRegExp(CompiledRegExp *regexp) {
-  return regExpTable_.addRegExp(regexp);
-}
-
-uint32_t BytecodeModuleGenerator::addFilename(llvh::StringRef filename) {
+uint32_t BytecodeModuleGenerator::addFilename(StringRef filename) {
   return filenameTable_.addFilename(filename);
 }
 
@@ -327,7 +323,7 @@ std::unique_ptr<BytecodeModule> BytecodeModuleGenerator::generate() {
         F->getKind(),
         F->isStrictMode(),
         F->getExpectedParamCountIncludingThis(),
-        F->getFunctionScopeDesc()->getVariables().size(),
+        F->getFunctionScope()->getVariables().size(),
         functionNameId);
 
     if (F->isLazy()) {
@@ -351,11 +347,8 @@ std::unique_ptr<BytecodeModule> BytecodeModuleGenerator::generate() {
       uint32_t sourceLocOffset = debugInfoGen.appendSourceLocations(
           BFG.getSourceLocation(), i, BFG.getDebugLocations());
       uint32_t lexicalDataOffset = debugInfoGen.appendLexicalData(
-          BFG.getLexicalParentID(), BFG.getDebugVariableNamesUTF8());
-      uint32_t textifiedCalleesOffset =
-          debugInfoGen.appendTextifiedCalleeData(BFG.getTextifiedCallees());
-      func->setDebugOffsets(
-          {sourceLocOffset, lexicalDataOffset, textifiedCalleesOffset});
+          BFG.getLexicalParentID(), BFG.getDebugVariableNames());
+      func->setDebugOffsets({sourceLocOffset, lexicalDataOffset});
     }
     BM->setFunction(i, std::move(func));
   }

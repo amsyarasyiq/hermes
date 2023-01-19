@@ -316,34 +316,17 @@ class JCollator : public jni::JavaClass<JCollator> {
   }
 };
 
-class CollatorAndroid : public Collator {
- public:
-  CollatorAndroid() = default;
-  ~CollatorAndroid() {
-    jni::ThreadScope::WithClassLoader([&] { jCollator_.reset(); });
-  }
-
-  vm::ExecutionStatus initialize(
-      vm::Runtime &runtime,
-      const std::vector<std::u16string> &locales,
-      const Options &options) noexcept;
-
-  Options resolvedOptions() noexcept {
-    return optionsFromJava(jCollator_->resolvedOptions());
-  }
-
-  double compare(const std::u16string &x, const std::u16string &y) noexcept {
-    return jCollator_->compare(stringToJava(x), stringToJava(y));
-  }
-
- private:
-  jni::global_ref<JCollator> jCollator_;
-};
 } // namespace
 
-Collator::Collator() = default;
+struct Collator::Impl {
+  jni::global_ref<JCollator> jCollator_;
+};
 
-Collator::~Collator() = default;
+Collator::Collator() : impl_(std::make_unique<Impl>()) {}
+
+Collator::~Collator() {
+  jni::ThreadScope::WithClassLoader([&] { impl_.reset(); });
+}
 
 vm::CallResult<std::vector<std::u16string>> Collator::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -359,12 +342,12 @@ vm::CallResult<std::vector<std::u16string>> Collator::supportedLocalesOf(
   }
 }
 
-vm::ExecutionStatus CollatorAndroid::initialize(
+vm::ExecutionStatus Collator::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
   try {
-    jCollator_ = jni::make_global(
+    impl_->jCollator_ = jni::make_global(
         JCollator::create(localesToJava(locales), optionsToJava(options)));
   } catch (const std::exception &ex) {
     return runtime.raiseRangeError(ex.what());
@@ -373,27 +356,14 @@ vm::ExecutionStatus CollatorAndroid::initialize(
   return vm::ExecutionStatus::RETURNED;
 }
 
-vm::CallResult<std::unique_ptr<Collator>> Collator::create(
-    vm::Runtime &runtime,
-    const std::vector<std::u16string> &locales,
-    const Options &options) noexcept {
-  auto instance = std::make_unique<CollatorAndroid>();
-  if (LLVM_UNLIKELY(
-          instance->initialize(runtime, locales, options) ==
-          vm::ExecutionStatus::EXCEPTION)) {
-    return vm::ExecutionStatus::EXCEPTION;
-  }
-  return instance;
-}
-
 Options Collator::resolvedOptions() noexcept {
-  return static_cast<CollatorAndroid *>(this)->resolvedOptions();
+  return optionsFromJava(impl_->jCollator_->resolvedOptions());
 }
 
 double Collator::compare(
     const std::u16string &x,
     const std::u16string &y) noexcept {
-  return static_cast<CollatorAndroid *>(this)->compare(x, y);
+  return impl_->jCollator_->compare(stringToJava(x), stringToJava(y));
 }
 
 namespace {
@@ -441,43 +411,17 @@ class JDateTimeFormat : public jni::JavaClass<JDateTimeFormat> {
   }
 };
 
-class DateTimeFormatAndroid : public DateTimeFormat {
- public:
-  DateTimeFormatAndroid() = default;
-  ~DateTimeFormatAndroid() {
-    jni::ThreadScope::WithClassLoader([&] { jDateTimeFormat_.reset(); });
-  }
-
-  vm::ExecutionStatus initialize(
-      vm::Runtime &runtime,
-      const std::vector<std::u16string> &locales,
-      const Options &options) noexcept;
-
-  Options resolvedOptions() noexcept {
-    return optionsFromJava(jDateTimeFormat_->resolvedOptions());
-  }
-
-  std::u16string format(double jsTimeValue) noexcept {
-    // I don't believe the Java logic can throw an exception (the JS
-    // method can, but the errors all come from the Intl.cpp logic).  If
-    // I am incorrect, this will need to add a try/catch and take a
-    // runtime to call raiseRangeError on it.  This is true for all the
-    // format methods.
-    return stringFromJava(jDateTimeFormat_->format(jsTimeValue));
-  }
-
-  std::vector<Part> formatToParts(double jsTimeValue) noexcept {
-    return partsFromJava(jDateTimeFormat_->formatToParts(jsTimeValue));
-  }
-
- private:
-  jni::global_ref<JDateTimeFormat> jDateTimeFormat_;
-};
 } // namespace
 
-DateTimeFormat::DateTimeFormat() = default;
+struct DateTimeFormat::Impl {
+  jni::global_ref<JDateTimeFormat> jDateTimeFormat_;
+};
 
-DateTimeFormat::~DateTimeFormat() = default;
+DateTimeFormat::DateTimeFormat() : impl_(std::make_unique<Impl>()) {}
+
+DateTimeFormat::~DateTimeFormat() {
+  jni::ThreadScope::WithClassLoader([&] { impl_.reset(); });
+}
 
 vm::CallResult<std::vector<std::u16string>> DateTimeFormat::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -493,12 +437,12 @@ vm::CallResult<std::vector<std::u16string>> DateTimeFormat::supportedLocalesOf(
   }
 }
 
-vm::ExecutionStatus DateTimeFormatAndroid::initialize(
+vm::ExecutionStatus DateTimeFormat::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
   try {
-    jDateTimeFormat_ = jni::make_global(JDateTimeFormat::create(
+    impl_->jDateTimeFormat_ = jni::make_global(JDateTimeFormat::create(
         localesToJava(locales), optionsToJava(options)));
   } catch (const std::exception &ex) {
     return runtime.raiseRangeError(ex.what());
@@ -507,29 +451,21 @@ vm::ExecutionStatus DateTimeFormatAndroid::initialize(
   return vm::ExecutionStatus::RETURNED;
 }
 
-vm::CallResult<std::unique_ptr<DateTimeFormat>> DateTimeFormat::create(
-    vm::Runtime &runtime,
-    const std::vector<std::u16string> &locales,
-    const Options &options) noexcept {
-  auto instance = std::make_unique<DateTimeFormatAndroid>();
-  if (LLVM_UNLIKELY(
-          instance->initialize(runtime, locales, options) ==
-          vm::ExecutionStatus::EXCEPTION)) {
-    return vm::ExecutionStatus::EXCEPTION;
-  }
-  return instance;
-}
-
 Options DateTimeFormat::resolvedOptions() noexcept {
-  return static_cast<DateTimeFormatAndroid *>(this)->resolvedOptions();
+  return optionsFromJava(impl_->jDateTimeFormat_->resolvedOptions());
 }
 
 std::u16string DateTimeFormat::format(double jsTimeValue) noexcept {
-  return static_cast<DateTimeFormatAndroid *>(this)->format(jsTimeValue);
+  // I don't believe the Java logic can throw an exception (the JS
+  // method can, but the errors all come from the Intl.cpp logic).  If
+  // I am incorrect, this will need to add a try/catch and take a
+  // runtime to call raiseRangeError on it.  This is true for all the
+  // format methods.
+  return stringFromJava(impl_->jDateTimeFormat_->format(jsTimeValue));
 }
 
 std::vector<Part> DateTimeFormat::formatToParts(double jsTimeValue) noexcept {
-  return static_cast<DateTimeFormatAndroid *>(this)->formatToParts(jsTimeValue);
+  return partsFromJava(impl_->jDateTimeFormat_->formatToParts(jsTimeValue));
 }
 
 namespace {
@@ -577,44 +513,17 @@ class JNumberFormat : public jni::JavaClass<JNumberFormat> {
   }
 };
 
-class NumberFormatAndroid : public NumberFormat {
- public:
-  NumberFormatAndroid() = default;
-
-  ~NumberFormatAndroid() {
-    jni::ThreadScope::WithClassLoader([&] { jNumberFormat_.reset(); });
-  }
-
-  vm::ExecutionStatus initialize(
-      vm::Runtime &runtime,
-      const std::vector<std::u16string> &locales,
-      const Options &options) noexcept;
-
-  Options resolvedOptions() noexcept {
-    return optionsFromJava(jNumberFormat_->resolvedOptions());
-  }
-
-  std::u16string format(double number) noexcept {
-    // I don't believe the Java logic can throw an exception (the JS
-    // method can, but the errors all come from the Intl.cpp logic).  If
-    // I am incorrect, this will need to add a try/catch and take a
-    // runtime to call raiseRangeError on it.  This is true for all the
-    // format methods.
-    return stringFromJava(jNumberFormat_->format(number));
-  }
-
-  std::vector<Part> formatToParts(double number) noexcept {
-    return partsFromJava(jNumberFormat_->formatToParts(number));
-  }
-
- private:
-  jni::global_ref<JNumberFormat> jNumberFormat_;
-};
 } // namespace
 
-NumberFormat::NumberFormat() = default;
+struct NumberFormat::Impl {
+  jni::global_ref<JNumberFormat> jNumberFormat_;
+};
 
-NumberFormat::~NumberFormat() = default;
+NumberFormat::NumberFormat() : impl_(std::make_unique<Impl>()) {}
+
+NumberFormat::~NumberFormat() {
+  jni::ThreadScope::WithClassLoader([&] { impl_.reset(); });
+}
 
 vm::CallResult<std::vector<std::u16string>> NumberFormat::supportedLocalesOf(
     vm::Runtime &runtime,
@@ -630,12 +539,12 @@ vm::CallResult<std::vector<std::u16string>> NumberFormat::supportedLocalesOf(
   }
 }
 
-vm::ExecutionStatus NumberFormatAndroid::initialize(
+vm::ExecutionStatus NumberFormat::initialize(
     vm::Runtime &runtime,
     const std::vector<std::u16string> &locales,
     const Options &options) noexcept {
   try {
-    jNumberFormat_ = jni::make_global(
+    impl_->jNumberFormat_ = jni::make_global(
         JNumberFormat::create(localesToJava(locales), optionsToJava(options)));
   } catch (const std::exception &ex) {
     return runtime.raiseRangeError(ex.what());
@@ -644,29 +553,21 @@ vm::ExecutionStatus NumberFormatAndroid::initialize(
   return vm::ExecutionStatus::RETURNED;
 }
 
-vm::CallResult<std::unique_ptr<NumberFormat>> NumberFormat::create(
-    vm::Runtime &runtime,
-    const std::vector<std::u16string> &locales,
-    const Options &options) noexcept {
-  auto instance = std::make_unique<NumberFormatAndroid>();
-  if (LLVM_UNLIKELY(
-          instance->initialize(runtime, locales, options) ==
-          vm::ExecutionStatus::EXCEPTION)) {
-    return vm::ExecutionStatus::EXCEPTION;
-  }
-  return instance;
-}
-
 Options NumberFormat::resolvedOptions() noexcept {
-  return static_cast<NumberFormatAndroid *>(this)->resolvedOptions();
+  return optionsFromJava(impl_->jNumberFormat_->resolvedOptions());
 }
 
 std::u16string NumberFormat::format(double number) noexcept {
-  return static_cast<NumberFormatAndroid *>(this)->format(number);
+  // I don't believe the Java logic can throw an exception (the JS
+  // method can, but the errors all come from the Intl.cpp logic).  If
+  // I am incorrect, this will need to add a try/catch and take a
+  // runtime to call raiseRangeError on it.  This is true for all the
+  // format methods.
+  return stringFromJava(impl_->jNumberFormat_->format(number));
 }
 
 std::vector<Part> NumberFormat::formatToParts(double number) noexcept {
-  return static_cast<NumberFormatAndroid *>(this)->formatToParts(number);
+  return partsFromJava(impl_->jNumberFormat_->formatToParts(number));
 }
 
 } // namespace platform_intl

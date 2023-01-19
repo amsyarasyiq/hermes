@@ -8,21 +8,20 @@
 mod convert;
 mod generated_cvt;
 
-use std::fmt::Formatter;
-
+use crate::ast;
 use convert::Converter;
 use generated_cvt::cvt_node_ptr;
 use hermes::parser::HermesParser;
-pub use hermes::parser::MagicCommentKind;
 use hermes::parser::NodePtr;
-pub use hermes::parser::ParserDialect;
-pub use hermes::parser::ParserFlags;
 use hermes::utf::utf8_with_surrogates_to_string_lossy;
 use juno_support::source_manager::SourceId;
 use juno_support::NullTerminatedBuf;
+use std::fmt::Formatter;
 use thiserror::Error;
 
-use crate::ast;
+pub use hermes::parser::MagicCommentKind;
+pub use hermes::parser::ParserDialect;
+pub use hermes::parser::ParserFlags;
 
 pub struct ParsedJS<'a> {
     parser: HermesParser<'a>,

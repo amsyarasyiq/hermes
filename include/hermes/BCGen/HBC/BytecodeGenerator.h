@@ -20,11 +20,10 @@
 #include "hermes/BCGen/HBC/UniquingFilenameTable.h"
 #include "hermes/BCGen/HBC/UniquingStringLiteralTable.h"
 #include "hermes/IR/IR.h"
-#include "hermes/Regex/RegexSerialization.h"
 #include "hermes/Support/BigIntSupport.h"
 #include "hermes/Support/Conversions.h"
 #include "hermes/Support/OptValue.h"
-#include "llvh/ADT/StringRef.h"
+#include "hermes/Support/RegExpSerialization.h"
 
 namespace hermes {
 namespace hbc {
@@ -79,10 +78,7 @@ class BytecodeFunctionGenerator : public BytecodeInstructionGenerator {
   std::vector<DebugSourceLocation> debugLocations_{};
 
   /// Table mapping variable names to frame locations.
-  std::vector<Identifier> debugVariableNamesUTF8_;
-
-  /// Table mapping addresses to textified callees.
-  std::vector<DebugTextifiedCallee> textifiedCallees_;
+  std::vector<Identifier> debugVariableNames_;
 
   /// Lexical parent function ID, i.e. the lexically containing function.
   OptValue<uint32_t> lexicalParentID_{};
@@ -153,11 +149,11 @@ class BytecodeFunctionGenerator : public BytecodeInstructionGenerator {
 
   /// Adds a compiled regexp to the module table.
   /// \return the index of the regexp in the table.
-  uint32_t addRegExp(CompiledRegExp *regexp);
+  uint32_t addRegExp(CompiledRegExp regexp);
 
   /// Add filename to the filename table.
   /// \return the index of the string.
-  uint32_t addFilename(llvh::StringRef filename);
+  uint32_t addFilename(StringRef filename);
 
   void addExceptionHandler(HBCExceptionHandlerInfo info);
 
@@ -181,29 +177,20 @@ class BytecodeFunctionGenerator : public BytecodeInstructionGenerator {
 
   bool hasDebugInfo() const {
     return !debugLocations_.empty() || lexicalParentID_ ||
-        !debugVariableNamesUTF8_.empty() || !textifiedCallees_.empty();
-  }
-
-  // Add the textified callee string for the callable in a given location.
-  void addDebugTextfiedCallee(const DebugTextifiedCallee &tCallee) {
-    textifiedCallees_.emplace_back(tCallee);
-  }
-
-  llvh::ArrayRef<DebugTextifiedCallee> getTextifiedCallees() const {
-    return textifiedCallees_;
+        !debugVariableNames_.empty();
   }
 
   /// Add a debug variable named \name.
-  void setDebugVariableNamesUTF8(std::vector<Identifier> names) {
+  void setDebugVariableNames(std::vector<Identifier> names) {
     assert(
         !complete_ &&
         "Cannot modify BytecodeFunction after call to bytecodeGenerationComplete.");
-    debugVariableNamesUTF8_ = std::move(names);
+    debugVariableNames_ = std::move(names);
   }
 
   /// \return the list of debug variable names.
-  llvh::ArrayRef<Identifier> getDebugVariableNamesUTF8() const {
-    return debugVariableNamesUTF8_;
+  llvh::ArrayRef<Identifier> getDebugVariableNames() const {
+    return debugVariableNames_;
   }
 
   /// Set the lexical parent ID to \p parentId.
@@ -282,17 +269,15 @@ class BytecodeFunctionGenerator : public BytecodeInstructionGenerator {
 /// This class is used by the hermes backend.
 /// It wraps all data required to generate the module.
 class BytecodeModuleGenerator {
- public:
-  using LiteralOffset = std::pair<uint32_t, uint32_t>;
-  using LiteralOffsetMapTy = llvh::DenseMap<const Instruction *, LiteralOffset>;
-
- private:
   /// Mapping from Function * to a sequential ID.
   AllocationTable<Function *> functionIDMap_{};
 
   /// Mapping from Function * to it's BytecodeFunctionGenerator *.
   DenseMap<Function *, std::unique_ptr<BytecodeFunctionGenerator>>
       functionGenerators_{};
+
+  /// Generate literals buffer for object/array.
+  SerializedLiteralGenerator literalGenerator_;
 
   /// The mapping from strings to ID for strings in the resulting bytecode
   /// module.
@@ -335,11 +320,6 @@ class BytecodeModuleGenerator {
   /// They are stored as chars in order to shorten bytecode size
   std::vector<unsigned char> objValBuffer_{};
 
-  /// A map from instruction to literal offset in the corresponding buffers.
-  /// \c arrayBuffer_, \c objKeyBuffer_, \c objValBuffer_.
-  /// This map is populated before instruction selection.
-  LiteralOffsetMapTy literalOffsetMap_{};
-
   /// Options controlling bytecode generation.
   BytecodeGenerationOptions options_;
 
@@ -362,7 +342,8 @@ class BytecodeModuleGenerator {
   /// Constructor which enables optimizations if \p optimizationEnabled is set.
   BytecodeModuleGenerator(
       BytecodeGenerationOptions options = BytecodeGenerationOptions::defaults())
-      : options_(options) {}
+      : literalGenerator_(*this, options.optimizationEnabled),
+        options_(options) {}
 
   /// Add a function to functionIDMap_ if not already exist. Returns the ID.
   unsigned addFunction(Function *F);
@@ -385,18 +366,18 @@ class BytecodeModuleGenerator {
   /// \returns the index of the bigint in this module's bigint table if it
   /// exists.  If the bigint does not exist will trigger an assertion failure
   /// if assertions are enabled.
-  unsigned getBigIntID(llvh::StringRef str) const;
+  unsigned getBigIntID(StringRef str) const;
 
   /// \returns the index of the string in this module's string table if it
   /// exists.  If the string does not exist will trigger an assertion failure
   /// if assertions are enabled.
-  unsigned getStringID(llvh::StringRef str) const;
+  unsigned getStringID(StringRef str) const;
 
   /// \returns the index of the string in this module's string table, assuming
   /// it exists and is an identifier.  If the string does not exist in the
   /// table, or it is not marked as an identifier, an assertion failure will be
   /// triggered, if assertions are enabled.
-  unsigned getIdentifierID(llvh::StringRef str) const;
+  unsigned getIdentifierID(StringRef str) const;
 
   /// Set the string table this generator uses to find the IDs for strings.
   /// Once it is set, this table will not be further modified -- all strings
@@ -408,25 +389,13 @@ class BytecodeModuleGenerator {
   /// \return the index of the bigint in the table.
   uint32_t addBigInt(bigint::ParsedBigInt bigint);
 
-  /// Set the serialized literal tables that this generator will use. Once set,
-  /// no further modifications are possible.
-  /// \param arrayBuffer buffer containing the serialized array literals.
-  /// \param objBuffer buffer containing the keys of serialized object literals.
-  /// \param valBuffer buffer containing the values of serialized object
-  ///     literals.
-  void initializeSerializedLiterals(
-      std::vector<unsigned char> &&arrayBuffer,
-      std::vector<unsigned char> &&keyBuffer,
-      std::vector<unsigned char> &&valBuffer,
-      LiteralOffsetMapTy &&offsetMap);
-
   /// Adds a compiled regexp to the module table.
   /// \return the index of the regexp in the table.
-  uint32_t addRegExp(CompiledRegExp *regexp);
+  uint32_t addRegExp(CompiledRegExp regexp);
 
   /// Add filename to the filename table.
   /// \return the index of the string.
-  uint32_t addFilename(llvh::StringRef str);
+  uint32_t addFilename(StringRef str);
 
   /// Set the segment ID for this module.
   void setSegmentID(uint32_t id) {
@@ -445,6 +414,17 @@ class BytecodeModuleGenerator {
   /// \param stringID the index of the corresponding source in the string table.
   void addFunctionSource(uint32_t functionID, uint32_t stringID);
 
+  /// Returns the starting offset of the elements.
+  uint32_t addArrayBuffer(ArrayRef<Literal *> elements);
+
+  /// Add to the the object buffer using \keys as the array of keys, and
+  /// \vals as the array of values.
+  /// Returns a pair where the first value is the object's offset into the
+  /// key buffer, and the second value is its offset into the value buffer.
+  std::pair<uint32_t, uint32_t> addObjectBuffer(
+      ArrayRef<Literal *> keys,
+      ArrayRef<Literal *> vals);
+
   /// Serializes the array of literals given into a compact char buffer.
   /// The serialization format can be found in:
   /// include/hermes/VM/SerializedLiteralParser.h
@@ -462,17 +442,6 @@ class BytecodeModuleGenerator {
       ArrayRef<Literal *> literals,
       std::vector<unsigned char> &buff,
       bool isKeyBuffer);
-
-  /// For a given instruction \p inst that has an associated serialized literal,
-  /// obtain the offset of the literal in the associated buffer. In case of
-  /// an object literal, it is a pair of offsets (key and value). In case of
-  /// array literal, only the first offset is used.
-  LiteralOffset serializedLiteralOffsetFor(const Instruction *inst) {
-    assert(
-        literalOffsetMap_.count(inst) &&
-        "instruction has no serialized literal");
-    return literalOffsetMap_[inst];
-  }
 
   /// \return a BytecodeModule.
   std::unique_ptr<BytecodeModule> generate();

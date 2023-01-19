@@ -13,7 +13,6 @@
 #include "hermes/VM/JSArray.h"
 #include "hermes/VM/JSArrayBuffer.h"
 #include "hermes/VM/JSLib.h"
-#include "hermes/VM/JSRegExp.h"
 #include "hermes/VM/Operations.h"
 #include "hermes/VM/PrimitiveBox.h"
 #include "hermes/VM/StackFrame-inline.h"
@@ -251,8 +250,12 @@ CallResult<HermesValue> copyDataPropertiesSlowPath_RJS(
     Handle<JSObject> target,
     Handle<JSObject> from,
     Handle<JSObject> excludedItems) {
+  assert(
+      from->isProxyObject() &&
+      "copyDataPropertiesSlowPath_RJS is only for Proxy");
+
   // 5. Let keys be ? from.[[OwnPropertyKeys]]().
-  auto cr = JSObject::getOwnPropertyKeys(
+  auto cr = JSProxy::getOwnPropertyKeys(
       from,
       runtime,
       OwnKeysFlags()
@@ -306,17 +309,15 @@ CallResult<HermesValue> copyDataPropertiesSlowPath_RJS(
 
     //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
     ComputedPropertyDescriptor desc;
-    CallResult<bool> crb = JSObject::getOwnComputedDescriptor(
-        from, runtime, nextKeyHandle, tmpSymbolStorage, desc);
+    CallResult<bool> crb =
+        JSProxy::getOwnProperty(from, runtime, nextKeyHandle, desc, nullptr);
     if (LLVM_UNLIKELY(crb == ExecutionStatus::EXCEPTION))
       return ExecutionStatus::EXCEPTION;
     //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-    // TODO(T141997867), move this special case behavior for host objects to
-    // getOwnComputedDescriptor.
-    if ((*crb && desc.flags.enumerable) || from->isHostObject()) {
+    if (*crb && desc.flags.enumerable) {
       //     1. Let propValue be ? Get(from, nextKey).
       CallResult<PseudoHandle<>> crv =
-          JSObject::getComputed_RJS(from, runtime, nextKeyHandle);
+          JSProxy::getComputed(from, runtime, nextKeyHandle, from);
       if (LLVM_UNLIKELY(crv == ExecutionStatus::EXCEPTION))
         return ExecutionStatus::EXCEPTION;
       propValueHandle = std::move(*crv);
@@ -378,13 +379,7 @@ hermesBuiltinCopyDataProperties(void *, Runtime &runtime, NativeArgs args) {
       (!excludedItems || !excludedItems->isProxyObject()) &&
       "excludedItems internal List is a Proxy");
 
-  // We cannot use the fast path if the object is a proxy, host object, or when
-  // there could potentially be an accessor defined on the object. This is
-  // because in order to use JSObject::forEachOwnPropertyWhile, we must not
-  // modify the underlying property map or hidden class. However, if we have an
-  // accessor, we cannot guarantee that condition, so we use the slow path.
-  if (source->isProxyObject() || source->isHostObject() ||
-      source->getClass(runtime)->getMayHaveAccessor()) {
+  if (source->isProxyObject()) {
     return copyDataPropertiesSlowPath_RJS(
         runtime, target, source, excludedItems);
   }
@@ -462,9 +457,12 @@ hermesBuiltinCopyDataProperties(void *, Runtime &runtime, NativeArgs args) {
             return true;
         }
 
-        SmallHermesValue shv =
-            JSObject::getNamedSlotValueUnsafe(*source, runtime, desc);
-        valueHandle = runtime.makeHandle(shv.unboxToHV(runtime));
+        auto cr =
+            JSObject::getNamedPropertyValue_RJS(source, runtime, source, desc);
+        if (LLVM_UNLIKELY(cr == ExecutionStatus::EXCEPTION))
+          return false;
+
+        valueHandle = std::move(*cr);
 
         // sym can be an index-like property, so we have to bypass the assert in
         // defineOwnPropertyInternal.
@@ -809,16 +807,6 @@ hermesBuiltinExponentiate(void *ctx, Runtime &runtime, NativeArgs args) {
       runtime, std::move(lhs), runtime.makeHandle(res->getBigInt()));
 }
 
-CallResult<HermesValue> hermesBuiltinInitRegexNamedGroups(
-    void *ctx,
-    Runtime &runtime,
-    NativeArgs args) {
-  auto *regexp = dyn_vmcast<JSRegExp>(args.getArg(0));
-  auto *groupsObj = dyn_vmcast<JSObject>(args.getArg(1));
-  regexp->setGroupNameMappings(runtime, groupsObj);
-  return HermesValue::encodeUndefinedValue();
-}
-
 void createHermesBuiltins(
     Runtime &runtime,
     llvh::MutableArrayRef<Callable *> builtins) {
@@ -890,10 +878,6 @@ void createHermesBuiltins(
       B::HermesBuiltin_exponentiationOperator,
       P::exponentiationOperator,
       hermesBuiltinExponentiate);
-  defineInternMethod(
-      B::HermesBuiltin_initRegexNamedGroups,
-      P::initRegexNamedGroups,
-      hermesBuiltinInitRegexNamedGroups);
 
   // Define the 'requireFast' function, which takes a number argument.
   defineInternMethod(

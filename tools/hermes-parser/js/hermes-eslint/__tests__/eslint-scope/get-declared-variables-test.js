@@ -33,9 +33,9 @@
 */
 'use strict';
 
-import type {Program, ESNode} from 'hermes-estree';
+import type {Program} from 'hermes-estree';
 
-// $FlowExpectedError
+// $FlowExpectedError[untyped-import]
 import {visit} from 'esrecurse';
 import {parse} from '../../src';
 import {analyze} from '../../src/scope-manager';
@@ -52,7 +52,7 @@ describe('ScopeManager.prototype.getDeclaredVariables', () => {
 
     visit(ast, {
       // $FlowExpectedError[invalid-computed-prop]
-      [type](this: $FlowFixMe, node: ESNode) {
+      [type](node) {
         const expected = expectedNamesList.shift();
         const actual = scopeManager.getDeclaredVariables(node);
 

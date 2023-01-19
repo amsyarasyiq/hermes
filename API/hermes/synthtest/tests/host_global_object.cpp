@@ -55,7 +55,7 @@ const char *hostGlobalObjectTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:22",
+      "propID": 22,
       "propName": "foo",
       "value": "object:10"
     },
@@ -69,7 +69,7 @@ const char *hostGlobalObjectTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:23",
+      "propID": 23,
       "propName": "baz",
       "value": "object:11"
     },
@@ -94,7 +94,7 @@ const char *hostGlobalObjectTrace() {
       "type": "GetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:24",
+      "propID": 24,
       "propName": "bar",
       "value": "object:12"
     },
@@ -122,7 +122,7 @@ const char *hostGlobalObjectTrace() {
       "type": "GetPropertyRecord",
       "time": 0,
       "objID": 1,
-      "propID": "propIDTag:25",
+      "propID": 25,
       "propName": "quux",
       "value": "object:13"
     },
@@ -136,7 +136,7 @@ const char *hostGlobalObjectTrace() {
       "type": "GetPropertyRecord",
       "time": 0,
       "objID": 13,
-      "propID": "propIDTag:26",
+      "propID": 26,
       "propName": "b",
       "value": "bool:true"
     },
@@ -165,7 +165,7 @@ const char *hostGlobalObjectTrace() {
       "type": "SetPropertyRecord",
       "time": 0,
       "objID": 15,
-      "propID": "propIDTag:27",
+      "propID": 27,
       "propName": "a",
       "value": "null:"
     },

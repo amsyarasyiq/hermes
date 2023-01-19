@@ -57,10 +57,6 @@ class Parser {
   const uint32_t backRefLimit_;
   uint32_t maxBackRef_ = 0;
 
-  // When parsing, this is the default assumption we make for if there are
-  // groups or not. That means this value may not reflect reality.
-  bool hasNamedGroups_;
-
   /// Set the error \p err, if not already set to a different error.
   /// Also move our input to end, to abort parsing.
   /// \return false, for convenience.
@@ -112,7 +108,7 @@ class Parser {
     re_->pushLoop(
         quant.min_,
         quant.max_,
-        std::move(quantifiedExpression),
+        move(quantifiedExpression),
         quant.startMarkedSubexprs_,
         quant.greedy_);
   }
@@ -175,9 +171,6 @@ class Parser {
 
       /// We are parsing a capturing group: ().
       CapturingGroup,
-
-      /// We are parsing a named capturing group: (?<id ...>).
-      NamedCapturingGroup,
 
       /// We are parsing a non-capturing group: (?:).
       NonCapturingGroup,
@@ -259,35 +252,6 @@ class Parser {
     stack.push_back(std::move(elem));
   }
 
-  /// Open a named group, pushing it onto \p stack.
-  void openNamedCapturingGroup(ParseStack &stack) {
-    ParseStackElement elem(ParseStackElement::NamedCapturingGroup);
-    // Quantifier must be prepared before incrementing the marked counter
-    // because the newly opened capture group is the first one being quantified
-    // by it.
-    elem.quant = prepareQuantifier();
-    if (LLVM_UNLIKELY(re_->markedCount() >= constants::kMaxCaptureGroupCount)) {
-      setError(constants::ErrorType::PatternExceedsParseLimits);
-      return;
-    }
-    elem.mexp = re_->incrementMarkedCount();
-    elem.splicePoint = re_->currentNode();
-
-    GroupName identifier;
-    if (!tryConsumeGroupName(identifier)) {
-      setError(constants::ErrorType::InvalidCaptureGroupName);
-      return;
-    }
-
-    // If we couldn't add this named group, that means a name already existed.
-    if (!re_->addNamedCaptureGroup(std::move(identifier), elem.mexp)) {
-      setError(constants::ErrorType::DuplicateCaptureGroupName);
-      return;
-    }
-
-    hasNamedGroups_ = true;
-    stack.push_back(std::move(elem));
-  }
   /// Open a non-capturing group, pushing it onto \p stack.
   void openNonCapturingGroup(ParseStack &stack) {
     ParseStackElement elem(ParseStackElement::NonCapturingGroup);
@@ -319,7 +283,6 @@ class Parser {
         llvm_unreachable("Alternations must be popped via closeAlternation()");
         break;
 
-      case ParseStackElement::NamedCapturingGroup:
       case ParseStackElement::CapturingGroup:
         re_->pushMarkedSubexpression(
             re_->spliceOut(elem.splicePoint), elem.mexp);
@@ -388,8 +351,6 @@ class Parser {
           } else if (tryConsume("(?<!")) {
             // Negative lookbehind, negate = true, forwards = false
             openLookaround(stack, true, false);
-          } else if (tryConsume("(?<")) {
-            openNamedCapturingGroup(stack);
           } else if (tryConsume("(?:")) {
             openNonCapturingGroup(stack);
           } else {
@@ -549,104 +510,6 @@ class Parser {
     }
     current_ = saved;
     return llvh::None;
-  }
-
-  // If this can consume a surrogate pair, it writes two characters into the
-  // UTF16 str and advances past the pair.
-  bool tryConsumeAndAppendSurrogatePair(
-      GroupName &str,
-      bool (*lambdaPredicate)(uint32_t)) {
-    auto saved = current_;
-    auto hi = consumeCharIf(isHighSurrogate);
-    auto lo = consumeCharIf(isLowSurrogate);
-    if (hi && lo && lambdaPredicate(decodeSurrogatePair(*hi, *lo))) {
-      str.push_back(*hi);
-      str.push_back(*lo);
-      return true;
-    }
-    current_ = saved;
-    return false;
-  }
-
-  /// ES2021 22.2.1 Patterns - GroupName
-  /// \return true if an identifier was successfully parsed.
-  /// Else, \return false.
-  bool tryConsumeGroupName(GroupName &identifierName) {
-    bool firstChar = true;
-    for (;;) {
-      if (current_ == end_) {
-        return false;
-      }
-      const CharT c = *current_;
-      switch (c) {
-        case '>':
-          if (identifierName.size() == 0) {
-            return false;
-          }
-          consume('>');
-          return true;
-        default: {
-          if (firstChar) {
-            bool matchedIdentifierStart =
-                tryConsumeRegExpIdentifier(identifierName, isUnicodeIDStart);
-            if (!matchedIdentifierStart) {
-              return false;
-            }
-          } else {
-            bool matchedIdentifierPart =
-                tryConsumeRegExpIdentifier(identifierName, isUnicodeIDContinue);
-            if (!matchedIdentifierPart) {
-              return false;
-            }
-          }
-        }
-      }
-      firstChar = false;
-    }
-  }
-
-  /// ES2021 22.2.1 Patterns - RegExpIdentifier(Start|Part)
-  // \return true if a RegExpIdentifier(Start|Part) could be consumed.
-  // lambdaPredicate should be either UnicodeIDStart or UnicodeIDContinue, as
-  // described in the spec.
-  bool tryConsumeRegExpIdentifier(
-      GroupName &identifierName,
-      bool (*lambdaPredicate)(uint32_t)) {
-    auto c = *current_;
-    if (lambdaPredicate(c)) {
-      consume(c);
-      identifierName.push_back(c);
-      return true;
-    }
-    auto saved = current_;
-    if (tryConsume("\\") && check('u')) {
-      if (auto cp = tryConsumeUnicodeEscapeSequence(true)) {
-        if (!lambdaPredicate(*cp)) {
-          return false;
-        }
-        writeCodePointToUTF16(*cp, identifierName);
-        return true;
-      }
-      saved = current_;
-    }
-    if (tryConsumeAndAppendSurrogatePair(identifierName, lambdaPredicate)) {
-      return true;
-    }
-    return false;
-  }
-
-  void writeCodePointToUTF16(uint32_t cp, GroupName &output) {
-    assert(isValidCodePoint(cp) && "Invalid Unicode code point");
-    if (cp <= 0x10000) {
-      output.push_back((char16_t)cp);
-      return;
-    }
-    // folowing conversion of codepoint -> surrogate pair taken from
-    // JSLib/escape.cpp
-    char16_t hi = (((cp - 0x10000) >> 10) & 0x3ff) + UTF16_HIGH_SURROGATE;
-    char16_t lo = ((cp - 0x10000) & 0x3ff) + UTF16_LOW_SURROGATE;
-    output.push_back(hi);
-    output.push_back(lo);
   }
 
   /// ES6 21.2.2.7 Quantifier.
@@ -1046,15 +909,14 @@ class Parser {
   }
 
   /// ES6 21.2.2.10 RegExpUnicodeEscapeSequence
-  Optional<CodePoint> tryConsumeUnicodeEscapeSequence(
-      bool overrideUnicodeFlag = false) {
+  Optional<CodePoint> tryConsumeUnicodeEscapeSequence() {
     auto saved = current_;
     if (!consume('u')) {
       return llvh::None;
     }
 
     // Non-unicode path only supports \uABCD style escapes.
-    if (!overrideUnicodeFlag && !(flags_.unicode)) {
+    if (!(flags_.unicode)) {
       if (auto ret = tryConsumeHexDigits(4)) {
         return *ret;
       }
@@ -1177,19 +1039,6 @@ class Parser {
         break;
       }
 
-      case 'k': {
-        if (flags_.unicode || hasNamedGroups_) {
-          consume('k');
-          GroupName refIdentifer;
-          if (!tryConsume('<') || !tryConsumeGroupName(refIdentifer)) {
-            setError(constants::ErrorType::InvalidNamedReference);
-            return;
-          }
-          re_->pushNamedBackRef(std::move(refIdentifer));
-          break;
-        }
-        re_->sawNamedBackrefBeforeGroup();
-      }
       default: {
         re_->pushChar(consumeCharacterEscape());
         break;
@@ -1206,14 +1055,12 @@ class Parser {
       ForwardIterator start,
       ForwardIterator end,
       SyntaxFlags flags,
-      uint32_t backRefLimit,
-      bool hasNamedGroups)
+      uint32_t backRefLimit)
       : re_(re),
         current_(start),
         end_(end),
         flags_(flags),
-        backRefLimit_(backRefLimit),
-        hasNamedGroups_(hasNamedGroups) {}
+        backRefLimit_(backRefLimit) {}
 
   constants::ErrorType performParse() {
     consumeDisjunction();
@@ -1235,10 +1082,9 @@ constants::ErrorType parseRegex(
     Receiver *receiver,
     SyntaxFlags flags,
     uint32_t backRefLimit,
-    bool hasNamedGroups,
     uint32_t *outMaxBackRef) {
   Parser<Receiver, const char16_t *> parser(
-      receiver, start, end, flags, backRefLimit, hasNamedGroups);
+      receiver, start, end, flags, backRefLimit);
   auto result = parser.performParse();
   *outMaxBackRef = parser.maxBackRef();
   return result;
@@ -1251,7 +1097,6 @@ template constants::ErrorType parseRegex(
     Regex<UTF16RegexTraits> *receiver,
     SyntaxFlags flags,
     uint32_t backRefLimit,
-    bool hasNamedGroups,
     uint32_t *outMaxBackRef);
 
 } // namespace regex

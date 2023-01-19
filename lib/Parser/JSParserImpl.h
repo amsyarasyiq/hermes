@@ -19,7 +19,6 @@
 #include "llvh/ADT/ArrayRef.h"
 #include "llvh/ADT/Optional.h"
 #include "llvh/ADT/SmallVector.h"
-#include "llvh/ADT/StringRef.h"
 #include "llvh/Support/DataTypes.h"
 
 #include <utility>
@@ -91,7 +90,7 @@ class JSParserImpl {
 
   explicit JSParserImpl(Context &context, uint32_t bufferId, ParserPass pass);
 
-  JSParserImpl(Context &context, llvh::StringRef input)
+  JSParserImpl(Context &context, StringRef input)
       : JSParserImpl(
             context,
             llvh::MemoryBuffer::getMemBuffer(input, "JavaScript")) {}
@@ -298,7 +297,6 @@ class JSParserImpl {
   UniqueString *voidIdent_;
   UniqueString *nullIdent_;
   UniqueString *symbolIdent_;
-  UniqueString *bigintIdent_;
 
   UniqueString *checksIdent_;
 
@@ -1266,6 +1264,10 @@ class JSParserImpl {
       IsConstructorType isConstructorType);
   bool parseTSFunctionTypeParams(SMLoc start, ESTree::NodeList &params);
   Optional<ESTree::Node *> parseTSFunctionTypeParam();
+  Optional<ESTree::Node *> parseTSFunctionTypeWithParams(
+      SMLoc start,
+      ESTree::NodeList &&params,
+      ESTree::Node *typeParams);
 
   Optional<ESTree::Node *> parseTSObjectType();
   Optional<ESTree::Node *> parseTSObjectTypeMember();

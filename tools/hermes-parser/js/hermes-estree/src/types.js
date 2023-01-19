@@ -38,10 +38,7 @@
 
 export type Range = [number, number];
 
-export interface ObjectWithLoc {
-  +loc: SourceLocation;
-}
-export interface BaseToken extends ObjectWithLoc {
+export interface BaseToken {
   +loc: SourceLocation;
   +range: Range;
 }
@@ -229,9 +226,6 @@ export type Statement =
   | ClassDeclaration
   | ContinueStatement
   | DebuggerStatement
-  | DeclareClass
-  | DeclareVariable
-  | DeclareFunction
   | DeclareInterface
   | DeclareModule
   | DeclareOpaqueType
@@ -477,7 +471,7 @@ export interface ObjectPropertyWithShorthandStaticName
   // shorthand values *must* be identifiers (that look the same as the key)
   +value: Identifier;
   +kind: 'init';
-  +method: false;
+  +method: boolean;
   +shorthand: true;
 }
 export interface ObjectPropertyWithComputedName extends ObjectPropertyBase {
@@ -856,7 +850,7 @@ interface BaseClass extends BaseNode {
   +body: ClassBody;
 
   +typeParameters: null | TypeParameterDeclaration;
-  +superTypeParameters: null | TypeParameterInstantiation;
+  +superTypeParameters: null | TypeParameterDeclaration;
   +implements: $ReadOnlyArray<ClassImplements>;
   +decorators: $ReadOnlyArray<Decorator>;
 }
@@ -1030,30 +1024,13 @@ export type NamedDeclaration =
   | InterfaceDeclaration
   | EnumDeclaration;
 
-interface ExportNamedDeclarationBase extends BaseNode {
+export interface ExportNamedDeclaration extends BaseNode {
   +type: 'ExportNamedDeclaration';
   +declaration?: NamedDeclaration | null;
   +specifiers: $ReadOnlyArray<ExportSpecifier>;
-  +source?: StringLiteral | null;
+  +source?: Literal | null;
   +exportKind: 'value' | 'type';
 }
-export interface ExportNamedDeclarationWithSpecifiers
-  extends ExportNamedDeclarationBase {
-  +type: 'ExportNamedDeclaration';
-  +declaration: null;
-  +source: null;
-  +specifiers: $ReadOnlyArray<ExportSpecifier>;
-}
-export interface ExportNamedDeclarationWithDeclaration
-  extends ExportNamedDeclarationBase {
-  +type: 'ExportNamedDeclaration';
-  +declaration: NamedDeclaration;
-  +source: null;
-  +specifiers: [];
-}
-export type ExportNamedDeclaration =
-  | ExportNamedDeclarationWithSpecifiers
-  | ExportNamedDeclarationWithDeclaration;
 
 export interface ExportSpecifier extends BaseNode {
   +type: 'ExportSpecifier';
@@ -1068,7 +1045,7 @@ export interface ExportDefaultDeclaration extends BaseNode {
 
 export interface ExportAllDeclaration extends BaseNode {
   +type: 'ExportAllDeclaration';
-  +source: StringLiteral;
+  +source: Literal;
   +exportKind: 'value' | 'type';
   +exported?: Identifier | null;
 }
@@ -1085,7 +1062,6 @@ export interface AwaitExpression extends BaseNode {
 export type TypeAnnotationType =
   | NumberTypeAnnotation
   | StringTypeAnnotation
-  | BigIntTypeAnnotation
   | BooleanTypeAnnotation
   | NullLiteralTypeAnnotation
   | AnyTypeAnnotation
@@ -1149,9 +1125,6 @@ export interface NumberTypeAnnotation extends BaseNode {
 export interface StringTypeAnnotation extends BaseNode {
   +type: 'StringTypeAnnotation';
 }
-export interface BigIntTypeAnnotation extends BaseNode {
-  +type: 'BigIntTypeAnnotation';
-}
 export interface BooleanTypeAnnotation extends BaseNode {
   +type: 'BooleanTypeAnnotation';
 }
@@ -1188,14 +1161,13 @@ export interface NumberLiteralTypeAnnotation extends BaseNode {
 }
 export interface BigIntLiteralTypeAnnotation extends BaseNode {
   +type: 'BigIntLiteralTypeAnnotation';
-  +bigint: string;
-  +value: null /* | bigint */;
+  +value: null;
   +raw: string;
 }
 export interface BooleanLiteralTypeAnnotation extends BaseNode {
   +type: 'BooleanLiteralTypeAnnotation';
   +value: boolean;
-  +raw: 'true' | 'false';
+  +raw: string;
 }
 export interface ArrayTypeAnnotation extends BaseNode {
   +type: 'ArrayTypeAnnotation';
@@ -1224,7 +1196,7 @@ export interface TypeofTypeAnnotation extends BaseNode {
 }
 export interface TupleTypeAnnotation extends BaseNode {
   +type: 'TupleTypeAnnotation';
-  +types: $ReadOnlyArray<TypeAnnotationType>;
+  +types: TypeAnnotationType;
 }
 
 // type T = { [[foo]]: number };
@@ -1258,7 +1230,7 @@ export interface FunctionTypeAnnotation extends BaseNode {
   +returnType: TypeAnnotationType;
   +rest: null | FunctionTypeParam;
   +typeParameters: null | TypeParameterDeclaration;
-  +this: FunctionTypeParam | null;
+  +this: TypeAnnotationType | null;
 }
 export interface FunctionTypeParam extends BaseNode {
   +type: 'FunctionTypeParam';
@@ -1283,58 +1255,23 @@ export interface ObjectTypeAnnotation extends BaseNode {
   +callProperties: $ReadOnlyArray<ObjectTypeCallProperty>;
   +internalSlots: $ReadOnlyArray<ObjectTypeInternalSlot>;
 }
-interface ObjectTypePropertyBase extends BaseNode {
+export interface ObjectTypeProperty extends BaseNode {
   +type: 'ObjectTypeProperty';
-  +key: Identifier | StringLiteral;
+  +key: Identifier;
   +value: TypeAnnotationType;
   +method: boolean;
   +optional: boolean;
-  +static: boolean; // only applies to the "declare class" case
-  +proto: boolean; // only applies to the "declare class" case
-  +variance: Variance | null;
-  +kind: 'init' | 'get' | 'set';
-
-  +parent: ObjectTypeAnnotation;
-}
-export interface ObjectTypeMethodSignature extends ObjectTypePropertyBase {
-  +type: 'ObjectTypeProperty';
-  +value: FunctionTypeAnnotation;
-  +method: true;
-  +optional: false;
-  +variance: null;
-  +kind: 'init';
-
-  +parent: ObjectTypeAnnotation;
-}
-export interface ObjectTypePropertySignature extends ObjectTypePropertyBase {
-  +type: 'ObjectTypeProperty';
-  +value: TypeAnnotationType;
-  +method: false;
-  +optional: boolean;
+  +static: false; // can't be static
+  +proto: false; // ???
   +variance: Variance | null;
   +kind: 'init';
 
   +parent: ObjectTypeAnnotation;
 }
-export interface ObjectTypeAccessorSignature extends ObjectTypePropertyBase {
-  +type: 'ObjectTypeProperty';
-  +value: FunctionTypeAnnotation;
-  +method: false;
-  +optional: false;
-  +variance: null;
-  +kind: 'get' | 'set';
-
-  +parent: ObjectTypeAnnotation;
-}
-export type ObjectTypeProperty =
-  | ObjectTypeMethodSignature
-  | ObjectTypePropertySignature
-  | ObjectTypeAccessorSignature;
-
 export interface ObjectTypeCallProperty extends BaseNode {
   +type: 'ObjectTypeCallProperty';
   +value: FunctionTypeAnnotation;
-  +static: boolean; // can only be static when defined on a declare class
+  +static: false; // can't be static
 
   +parent: ObjectTypeAnnotation;
 }
@@ -1343,7 +1280,7 @@ export interface ObjectTypeIndexer extends BaseNode {
   +id: null | Identifier;
   +key: TypeAnnotationType;
   +value: TypeAnnotationType;
-  +static: boolean; // can only be static when defined on a declare class
+  +static: false; // can't be static
   +variance: null | Variance;
 
   +parent: ObjectTypeAnnotation;
@@ -1357,13 +1294,13 @@ export interface ObjectTypeSpreadProperty extends BaseNode {
 
 export interface IndexedAccessType extends BaseNode {
   +type: 'IndexedAccessType';
-  +objectType: TypeAnnotationType;
-  +indexType: TypeAnnotationType;
+  +objectType: TypeAnnotation;
+  +indexType: TypeAnnotation;
 }
 export interface OptionalIndexedAccessType extends BaseNode {
   +type: 'OptionalIndexedAccessType';
-  +objectType: TypeAnnotationType;
-  +indexType: TypeAnnotationType;
+  +objectType: TypeAnnotation;
+  +indexType: TypeAnnotation;
   +optional: boolean;
 }
 
@@ -1389,7 +1326,7 @@ export interface InterfaceDeclaration extends BaseInterfaceDeclaration {
 export interface InterfaceExtends extends BaseNode {
   +type: 'InterfaceExtends';
   +id: Identifier;
-  +typeParameters: null | TypeParameterInstantiation;
+  +typeParameters: null | TypeParameterDeclaration;
 
   +parent: InterfaceDeclaration | DeclareInterface;
 }
@@ -1397,7 +1334,7 @@ export interface InterfaceExtends extends BaseNode {
 export interface ClassImplements extends BaseNode {
   +type: 'ClassImplements';
   +id: Identifier;
-  +typeParameters: null | TypeParameterInstantiation;
+  +typeParameters: null | TypeParameterDeclaration;
 
   +parent: AClass | DeclareClass;
 }
@@ -1539,12 +1476,7 @@ export interface DeclareVariable extends BaseNode {
 
 export interface DeclareFunction extends BaseNode {
   +type: 'DeclareFunction';
-  // the function signature is stored as a type annotation on the ID
-  +id: interface extends Identifier {
-    +typeAnnotation: interface extends TypeAnnotation {
-      +typeAnnotation: FunctionTypeAnnotation,
-    },
-  };
+  +id: Identifier;
   +predicate: InferredPredicate | DeclaredPredicate | null;
 }
 
@@ -1573,49 +1505,19 @@ export interface DeclareExportAllDeclaration extends BaseNode {
   +source: StringLiteral;
 }
 
-interface DeclareExportDeclarationBase extends BaseNode {
+export interface DeclareExportDeclaration extends BaseNode {
   +type: 'DeclareExportDeclaration';
   +specifiers: $ReadOnlyArray<ExportSpecifier>;
+  +declaration:
+    | TypeAlias
+    | DeclareClass
+    | DeclareFunction
+    | DeclareOpaqueType
+    | DeclareInterface
+    | null;
   +source: StringLiteral | null;
   +default: boolean;
 }
-export interface DeclareExportDefaultDeclaration
-  extends DeclareExportDeclarationBase {
-  +type: 'DeclareExportDeclaration';
-  +declaration: DeclareClass | DeclareFunction | TypeAnnotationType;
-  +default: true;
-  // default cannot have a source
-  +source: null;
-  // default cannot have specifiers
-  +specifiers: [];
-}
-export interface DeclareExportDeclarationNamedWithDeclaration
-  extends DeclareExportDeclarationBase {
-  +type: 'DeclareExportDeclaration';
-  +declaration:
-    | DeclareClass
-    | DeclareFunction
-    | DeclareInterface
-    | DeclareOpaqueType
-    | DeclareVariable;
-  +default: false;
-  +source: null;
-  // default cannot have specifiers and a declaration
-  +specifiers: [];
-}
-export interface DeclareExportDeclarationNamedWithSpecifiers
-  extends DeclareExportDeclarationBase {
-  +type: 'DeclareExportDeclaration';
-  // with a source you can't have a declaration
-  +declaration: null;
-  +default: false;
-  +source: StringLiteral;
-  +specifiers: $ReadOnlyArray<ExportSpecifier>;
-}
-export type DeclareExportDeclaration =
-  | DeclareExportDefaultDeclaration
-  | DeclareExportDeclarationNamedWithDeclaration
-  | DeclareExportDeclarationNamedWithSpecifiers;
 
 export interface DeclareModuleExports extends BaseNode {
   +type: 'DeclareModuleExports';

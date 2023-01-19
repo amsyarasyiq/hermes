@@ -68,7 +68,7 @@ static opt<bool> GCPrintStats(
 
 static opt<unsigned> ExecutionTimeLimit(
     "time-limit",
-    llvh::cl::desc("Number of milliseconds after which to abort JS execution"),
+    llvh::cl::desc("Number of milliseconds after which to abort JS exeuction"),
     llvh::cl::init(0));
 } // namespace cl
 
@@ -82,21 +82,23 @@ static int executeHBCBytecodeFromCL(
   ExecuteOptions options;
   options.runtimeConfig =
       vm::RuntimeConfig::Builder()
-          .withGCConfig(vm::GCConfig::Builder()
-                            .withMinHeapSize(cl::MinHeapSize.bytes)
-                            .withInitHeapSize(cl::InitHeapSize.bytes)
-                            .withMaxHeapSize(cl::MaxHeapSize.bytes)
-                            .withOccupancyTarget(cl::OccupancyTarget)
-                            .withSanitizeConfig(
-                                vm::GCSanitizeConfig::Builder()
-                                    .withSanitizeRate(cl::GCSanitizeRate)
-                                    .withRandomSeed(cl::GCSanitizeRandomSeed)
-                                    .build())
-                            .withShouldRecordStats(recStats)
-                            .withShouldReleaseUnused(vm::kReleaseUnusedNone)
-                            .withAllocInYoung(cl::GCAllocYoung)
-                            .withRevertToYGAtTTI(cl::GCRevertToYGAtTTI)
-                            .build())
+          .withGCConfig(
+              vm::GCConfig::Builder()
+                  .withMinHeapSize(cl::MinHeapSize.bytes)
+                  .withInitHeapSize(cl::InitHeapSize.bytes)
+                  .withMaxHeapSize(cl::MaxHeapSize.bytes)
+                  .withOccupancyTarget(cl::OccupancyTarget)
+                  .withSanitizeConfig(
+                      vm::GCSanitizeConfig::Builder()
+                          .withSanitizeRate(cl::GCSanitizeRate)
+                          .withRandomSeed(cl::GCSanitizeRandomSeed)
+                          .build())
+                  .withShouldRandomizeAllocSpace(cl::GCRandomizeAllocSpace)
+                  .withShouldRecordStats(recStats)
+                  .withShouldReleaseUnused(vm::kReleaseUnusedNone)
+                  .withAllocInYoung(cl::GCAllocYoung)
+                  .withRevertToYGAtTTI(cl::GCRevertToYGAtTTI)
+                  .build())
           .withEnableEval(cl::EnableEval)
           .withVerifyEvalIR(cl::VerifyIR)
           .withOptimizedEval(cl::OptimizedEval)
@@ -117,6 +119,10 @@ static int executeHBCBytecodeFromCL(
   options.basicBlockProfiling = cl::BasicBlockProfiling;
 
   options.stopAfterInit = false;
+#ifdef HERMESVM_PROFILER_EXTERN
+  options.patchProfilerSymbols = cl::PatchProfilerSymbols;
+  options.profilerSymbolsFile = cl::ProfilerSymbolsFile;
+#endif
   options.timeLimit = cl::ExecutionTimeLimit;
   options.stopAfterInit = cl::StopAfterInit;
   options.forceGCBeforeStats = cl::GCBeforeStats;

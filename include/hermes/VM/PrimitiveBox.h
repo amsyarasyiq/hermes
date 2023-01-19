@@ -191,7 +191,7 @@ class JSBigInt final : public JSObject {
     return cell->getKind() == CellKind::JSBigIntKind;
   }
 
-  static Handle<JSBigInt> create(
+  static CallResult<Handle<JSBigInt>> create(
       Runtime &runtime,
       Handle<BigIntPrimitive> value,
       Handle<JSObject> prototype);

@@ -62,7 +62,7 @@ endif()
 # - npm/package.json
 # - hermes-engine.podspec
 project(Hermes
-        VERSION 0.12.0
+        VERSION 0.11.0
         LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
@@ -127,7 +127,7 @@ set(HERMESVM_INDIRECT_THREADING ${DEFAULT_INTERPRETER_THREADING} CACHE BOOL
 set(HERMESVM_ALLOW_COMPRESSED_POINTERS ON CACHE BOOL
   "Enable compressed pointers. If this is on and the target is a 64-bit build, compressed pointers will be used.")
 
-if(APPLE)
+if(APPLE OR WIN32)
     set(DEFAULT_CONTIGUOUS_HEAP OFF)
 else()
     set(DEFAULT_CONTIGUOUS_HEAP ON)
@@ -576,13 +576,6 @@ if (HERMES_MEMORY_INSTRUMENTATION)
   add_definitions(-DHERMES_MEMORY_INSTRUMENTATION)
 endif()
 
-# Disables the GCC 64-to-32 bit truncation diagnostic if the compiler supports
-# -Wshorten-64-to-32.
-check_cxx_compiler_flag("-Wshorten-64-to-32" CXX_SUPPORTS_SHORTEN_64_TO_32)
-if (${CXX_SUPPORTS_SHORTEN_64_TO_32})
-  add_definitions(-DHERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32)
-endif()
-
 set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++17")
 
 # JSI_DIR has always priority over other folders.
@@ -681,7 +674,7 @@ if(HERMES_ENABLE_TEST_SUITE)
     set(coverage_directory ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/coverage)
   endif()
 
-  set(HERMES_LIT_TEST_PARAMS_BASE
+  set(HERMES_LIT_TEST_PARAMS
     test_exec_root=${CMAKE_CURRENT_BINARY_DIR}/test
     unittests_dir=${CMAKE_CURRENT_BINARY_DIR}/unittests
     debugger_enabled=${HERMES_ENABLE_DEBUGGER}
@@ -689,7 +682,7 @@ if(HERMES_ENABLE_TEST_SUITE)
     use_flowparser=${HERMES_USE_FLOWPARSER}
     hbc_deltaprep=${HERMES_TOOLS_OUTPUT_DIR}/hbc-deltaprep
     dependency_extractor=${HERMES_TOOLS_OUTPUT_DIR}/dependency-extractor
-    FileCheck=${HERMES_TOOLS_OUTPUT_DIR}/FileCheck
+    FileCheck=${HERMES_TOOLS_OUTPUT_DIR}//FileCheck
     hermes=${HERMES_TOOLS_OUTPUT_DIR}/hermes
     hermesc=${HERMES_TOOLS_OUTPUT_DIR}/hermesc
     hdb=${HERMES_TOOLS_OUTPUT_DIR}/hdb
@@ -706,16 +699,6 @@ if(HERMES_ENABLE_TEST_SUITE)
     coverage=${coverage_directory}
     )
 
-  set(HERMES_LIT_TEST_PARAMS
-    ${HERMES_LIT_TEST_PARAMS_BASE}
-    FileCheckOrRegen=${HERMES_TOOLS_OUTPUT_DIR}/FileCheck
-    )
-
-  set(HERMES_LIT_UPDATE_PARAMS
-    ${HERMES_LIT_TEST_PARAMS_BASE}
-    "FileCheckOrRegen=${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/lit-expect-gen/generate.py"
-    )
-
   set(LLVH_LIT_ARGS "-sv")
 
   add_lit_testsuite(check-hermes "Running the Hermes regression tests"
@@ -726,15 +709,48 @@ if(HERMES_ENABLE_TEST_SUITE)
     ARGS ${HERMES_TEST_EXTRA_ARGS}
     )
   set_target_properties(check-hermes PROPERTIES FOLDER "Hermes regression tests")
+endif()
 
-  # update-lit will regenerate the expectations for all tests that are verified with FileCheckOrRegen.
-  # All other tests are run normally.
-  add_lit_testsuite(update-lit "Running the Hermes regression tests, and updating auto-generated expectations."
-    ${CMAKE_CURRENT_SOURCE_DIR}/test
-    ${CMAKE_CURRENT_SOURCE_DIR}/unittests
-    PARAMS ${HERMES_LIT_UPDATE_PARAMS}
-    DEPENDS ${HERMES_TEST_DEPS}
-    ARGS ${HERMES_TEST_EXTRA_ARGS}
-    )
-  set_target_properties(update-lit PROPERTIES FOLDER "Hermes regression tests")
+# This is how github release files are built.
+
+set(HERMES_GITHUB_DIR ${CMAKE_CURRENT_BINARY_DIR}/github)
+file(MAKE_DIRECTORY ${HERMES_GITHUB_DIR})
+string(TOLOWER ${CMAKE_SYSTEM_NAME} HERMES_GITHUB_SYSTEM_NAME)
+
+if(HERMES_ENABLE_TOOLS)
+  set(HERMES_CLI_GITHUB_FILE hermes-cli-${HERMES_GITHUB_SYSTEM_NAME}-v${HERMES_RELEASE_VERSION}.tar.gz)
+  set(HERMES_GITHUB_BUNDLE_DIR ${CMAKE_CURRENT_BINARY_DIR}/bundle)
+
+  # If the github release should include extra files (like dlls)
+  if (HERMES_GITHUB_RESOURCE_DIR STREQUAL "")
+    set(HERMES_GITHUB_EXTRAS "")
+  else()
+    if (IS_DIRECTORY ${HERMES_GITHUB_RESOURCE_DIR})
+      file(GLOB HERMES_GITHUB_EXTRAS "${HERMES_GITHUB_RESOURCE_DIR}/*")
+    else()
+      message(FATAL_ERROR "Extra resource dir not found: ${HERMES_GITHUB_RESOURCE_DIR}")
+    endif()
+  endif()
+
+  # We need this as a separate target because Ninja doesn't run PRE_BUILD/PRE_LINKs in time
+  add_custom_command(
+    OUTPUT ${HERMES_GITHUB_BUNDLE_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${HERMES_GITHUB_BUNDLE_DIR})
+  add_custom_target(make_bundle_dir DEPENDS ${HERMES_GITHUB_BUNDLE_DIR})
+
+  add_custom_command(
+    OUTPUT ${HERMES_GITHUB_DIR}/${HERMES_CLI_GITHUB_FILE}
+    WORKING_DIRECTORY ${HERMES_GITHUB_BUNDLE_DIR}
+    DEPENDS hermes hermesc hdb hbcdump make_bundle_dir
+    VERBATIM
+    COMMAND
+      # We need bin/hermes or Release/bin/hermes.exe in a predictable location
+      ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hermes> $<TARGET_FILE:hermesc> $<TARGET_FILE:hdb> $<TARGET_FILE:hbcdump> ${HERMES_GITHUB_EXTRAS} .
+    COMMAND
+      ${CMAKE_COMMAND} -E tar zcf ${HERMES_GITHUB_DIR}/${HERMES_CLI_GITHUB_FILE} .
+  )
+
+  add_custom_target(
+    github-cli-release
+    DEPENDS ${HERMES_GITHUB_DIR}/${HERMES_CLI_GITHUB_FILE})
 endif()

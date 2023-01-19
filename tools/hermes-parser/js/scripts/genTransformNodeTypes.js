@@ -9,8 +9,8 @@
  */
 
 import {
-  GetHermesESTreeJSON,
-  formatAndWriteSrcArtifact,
+  HermesESTreeJSON,
+  formatAndWriteDistArtifact,
   LITERAL_TYPES,
   NODES_WITHOUT_TRANSFORM_NODE_TYPES,
 } from './utils/scriptUtils';
@@ -25,20 +25,15 @@ const NODES_WITH_SPECIAL_HANDLING = new Set([
   'BigIntLiteral',
   'BooleanLiteral',
   'ClassDeclaration',
-  'DeclareExportDeclaration',
-  'DeclareFunction',
-  'ExportNamedDeclaration',
   'Identifier',
   'NullLiteral',
   'NumericLiteral',
-  'ObjectTypeProperty',
-  'Program',
   'RegExpLiteral',
   'StringLiteral',
   'TemplateElement',
 ]);
 
-for (const node of GetHermesESTreeJSON()) {
+for (const node of HermesESTreeJSON) {
   if (
     NODES_WITH_SPECIAL_HANDLING.has(node.name) ||
     NODES_WITHOUT_TRANSFORM_NODE_TYPES.has(node.name)
@@ -139,9 +134,16 @@ ${nodeTypeFunctions.join('\n')}
 export * from './special-case-node-types';
 `;
 
-formatAndWriteSrcArtifact({
+formatAndWriteDistArtifact({
   code: fileContents,
   package: 'hermes-transform',
-  file: 'generated/node-types.js',
+  filename: 'node-types.js',
+  subdirSegments: ['generated'],
+});
+formatAndWriteDistArtifact({
+  code: fileContents,
+  package: 'hermes-transform',
+  filename: 'node-types.js.flow',
   flow: 'strict-local',
+  subdirSegments: ['generated'],
 });

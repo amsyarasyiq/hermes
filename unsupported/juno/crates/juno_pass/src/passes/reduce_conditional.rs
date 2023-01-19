@@ -17,9 +17,8 @@
 //! a
 //! ```
 
-use juno::ast::*;
-
 use crate::Pass;
+use juno::ast::*;
 
 #[derive(Default)]
 pub struct ReduceConditional {}

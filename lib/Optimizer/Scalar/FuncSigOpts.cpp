@@ -149,11 +149,11 @@ static bool performFSO(Function *F, std::vector<Function *> &worklist) {
 
   // Replace all unused arguments with undef.
   for (auto &arg : unusedParams) {
-    auto *prevArg = arg.first->getArgument(arg.second);
+    auto *prevArg = arg.first->getOperand(arg.second + 1);
     if (!llvh::isa<Literal>(prevArg))
       toRedo.insert(arg.first->getParent()->getParent());
 
-    arg.first->setArgument(undef, arg.second);
+    arg.first->setOperand(undef, arg.second + 1);
     NumArgsOpt++;
   }
 

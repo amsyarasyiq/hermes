@@ -43,7 +43,9 @@ CardObjectBoundaryNCTest::CardObjectBoundaryNCTest()
     : provider(StorageProvider::mmapProvider()),
       segment(std::move(AlignedStorage::create(provider.get()).get())),
       boundary(segment.cardTable().nextBoundary(segment.start())),
-      segStartIndex(boundary.index()) {}
+      segStartIndex(boundary.index()) {
+  segment.growToLimit();
+}
 
 TEST_F(CardObjectBoundaryNCTest, NextBoundaryInitial) {
   auto actual = segment.cardTable().nextBoundary(segment.start());

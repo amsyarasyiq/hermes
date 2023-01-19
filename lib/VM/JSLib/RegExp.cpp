@@ -12,17 +12,12 @@
 
 #include "JSLibInternal.h"
 
-#include "hermes/VM/JSObject.h"
 #include "hermes/VM/JSRegExpStringIterator.h"
 #include "hermes/VM/Operations.h"
 #include "hermes/VM/SmallXString.h"
 #include "hermes/VM/StringPrimitive.h"
 #include "hermes/VM/StringView.h"
-#pragma GCC diagnostic push
 
-#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
-#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
-#endif
 namespace hermes {
 namespace vm {
 
@@ -417,49 +412,6 @@ static CallResult<Handle<JSRegExp>> regExpConstructorFastCopy(
   return Handle<JSRegExp>::vmcast(*newRegexpRes);
 }
 
-static void createGroupsObject(
-    Runtime &runtime,
-    Handle<JSArray> matchObj,
-    Handle<JSObject> mappingObj) {
-  // matchObj is created with a HiddenClass that already has the groups
-  // property.
-  NamedPropertyDescriptor groupsDesc;
-  auto pos = JSObject::getOwnNamedDescriptor(
-      matchObj,
-      runtime,
-      Predefined::getSymbolID(Predefined::groups),
-      groupsDesc);
-  assert(pos && "match object is missing .groups property");
-  (void)pos;
-
-  // If there are no capture groups, then set groups to undefined.
-  if (!mappingObj) {
-    auto shv = SmallHermesValue::encodeUndefinedValue();
-    JSObject::setNamedSlotValueUnsafe(matchObj.get(), runtime, groupsDesc, shv);
-    return;
-  }
-
-  // The `__proto__` property on the groups object is not special,
-  // and does not affect the [[Prototype]] of the resulting groups object.
-  // This means that the prototype of the resulting groups object is null.
-  auto clazzHandle = runtime.makeHandle(mappingObj->getClass(runtime));
-  auto groupsObjRes = JSObject::create(
-      runtime, Runtime::makeNullHandle<JSObject>(), clazzHandle);
-  auto groupsObj = runtime.makeHandle(groupsObjRes.get());
-
-  HiddenClass::forEachProperty(
-      clazzHandle, runtime, [&](SymbolID id, NamedPropertyDescriptor desc) {
-        auto groupIdx =
-            JSObject::getNamedSlotValueUnsafe(*mappingObj, runtime, desc.slot)
-                .getNumber(runtime);
-        JSObject::setNamedSlotValueUnsafe(
-            *groupsObj, runtime, desc.slot, matchObj->at(runtime, groupIdx));
-      });
-
-  auto shv = SmallHermesValue::encodeObjectValue(*groupsObj, runtime);
-  JSObject::setNamedSlotValueUnsafe(matchObj.get(), runtime, groupsDesc, shv);
-}
-
 // ES6 21.2.5.2.2
 CallResult<Handle<JSArray>> directRegExpExec(
     Handle<JSRegExp> regexp,
@@ -566,34 +518,32 @@ CallResult<Handle<JSArray>> directRegExpExec(
     }
   }
 
-  auto arrRes = JSArray::createAndAllocPropStorage(
-      runtime,
-      Handle<JSObject>::vmcast(&runtime.arrayPrototype),
-      Handle<HiddenClass>::vmcast(&runtime.regExpMatchClass),
-      match.size(),
-      match.size());
+  const auto dpf = DefinePropertyFlags::getDefaultNewPropertyFlags();
+
+  auto arrRes = JSArray::create(runtime, match.size(), match.size());
   if (LLVM_UNLIKELY(arrRes == ExecutionStatus::EXCEPTION)) {
     return ExecutionStatus::EXCEPTION;
   }
   A = arrRes->get();
 
-  // A already has .index and .groups.
-  NamedPropertyDescriptor indexDesc;
-  bool res = JSObject::getOwnNamedDescriptor(
-      A, runtime, Predefined::getSymbolID(Predefined::index), indexDesc);
-  assert(res && "match object is missing .index property");
-  (void)res;
-  auto indexSHV =
-      SmallHermesValue::encodeNumberValue(match.front()->location, runtime);
-  JSObject::setNamedSlotValueUnsafe(*A, runtime, indexDesc, indexSHV);
+  CallResult<bool> defineResult = JSObject::defineOwnProperty(
+      A,
+      runtime,
+      Predefined::getSymbolID(Predefined::index),
+      dpf,
+      runtime.makeHandle(
+          HermesValue::encodeNumberValue(match.front()->location)));
+  assert(
+      defineResult != ExecutionStatus::EXCEPTION &&
+      "defineOwnProperty() failed on a new object");
+  (void)defineResult;
 
-  NamedPropertyDescriptor inputDesc;
-  res = JSObject::getOwnNamedDescriptor(
-      A, runtime, Predefined::getSymbolID(Predefined::input), inputDesc);
-  assert(res && "match object is missing .input property");
-  (void)res;
-  auto inputSHV = SmallHermesValue::encodeStringValue(*S, runtime);
-  JSObject::setNamedSlotValueUnsafe(*A, runtime, inputDesc, inputSHV);
+  defineResult = JSObject::defineOwnProperty(
+      A, runtime, Predefined::getSymbolID(Predefined::input), dpf, S);
+  assert(
+      defineResult != ExecutionStatus::EXCEPTION &&
+      "defineOwnProperty() failed on a new object");
+  (void)defineResult;
 
   // Set capture groups (including the initial full match)
   size_t idx = 0;
@@ -618,7 +568,6 @@ CallResult<Handle<JSArray>> directRegExpExec(
     }
     idx++;
   }
-  createGroupsObject(runtime, A, regexp->getGroupNameMappings(runtime));
   return A;
 }
 
@@ -931,7 +880,6 @@ CallResult<HermesValue> getSubstitution(
     Handle<StringPrimitive> str,
     uint32_t position,
     Handle<ArrayStorageSmall> captures,
-    Handle<JSObject> namedCaptures,
     Handle<StringPrimitive> replacement) {
   // 1. Assert: Type(matched) is String.
   // 2. Let matchLength be the number of code units in matched.
@@ -1045,49 +993,6 @@ CallResult<HermesValue> getSubstitution(
         // Not a valid $n.
         result.append({c0, c1});
         i += 2;
-      }
-    } else if (c1 == u'<' && namedCaptures) {
-      // i. Let gtPos be StringIndxOf(templateRemainder, ">", 0).
-      size_t gtPos = 0;
-      for (size_t innerI = i + 2; innerI < e; innerI++) {
-        if (replacementView[innerI] == u'>') {
-          gtPos = innerI;
-          break;
-        }
-      }
-      // We couldn't find a valid identifier
-      if (gtPos == 0) {
-        result.append({c0, c1});
-        i += 2;
-      } else {
-        llvh::SmallVector<char16_t, 32> storage;
-        // 2. Let groupName be the substring of templateRemainder from 2 to
-        // gtPos.
-        auto identifier =
-            replacementView.slice(i + 2, gtPos - (i + 2)).getUTF16Ref(storage);
-        auto symbolRes =
-            runtime.getIdentifierTable().getSymbolHandle(runtime, identifier);
-        if (LLVM_UNLIKELY(symbolRes == ExecutionStatus::EXCEPTION)) {
-          return ExecutionStatus::EXCEPTION;
-        }
-        auto captureRes =
-            JSObject::getNamed_RJS(namedCaptures, runtime, symbolRes->get());
-        if (LLVM_UNLIKELY(captureRes == ExecutionStatus::EXCEPTION))
-          return ExecutionStatus::EXCEPTION;
-        // 5. If capture is undefined, then
-        // a. Let refReplacement be the empty String.
-        // 6. Else,
-        if (!(*captureRes)->isUndefined()) {
-          // a. Let refReplacement be ? ToString(capture).
-          auto toStrRes =
-              toString_RJS(runtime, runtime.makeHandle(std::move(*captureRes)));
-          if (toStrRes == ExecutionStatus::EXCEPTION) {
-            return ExecutionStatus::EXCEPTION;
-          }
-          (*toStrRes)->appendUTF16String(result);
-        }
-        // Advance the cursor past the terminating '>'.
-        i = gtPos + 1;
       }
     } else {
       // None of the replacement strings count, add both characters.
@@ -1680,28 +1585,14 @@ regExpPrototypeSymbolReplace(void *, Runtime &runtime, NativeArgs args) {
       // v. Let n be n+1
       n++;
     }
-
-    // j. Let namedCaptures be ? Get(result, "groups").
-    MutableHandle<HermesValue> namedCaptures{runtime};
-    bool hasNamedCaptures = false;
-    auto namedCapturesRes = JSObject::getNamed_RJS(
-        result, runtime, Predefined::getSymbolID(Predefined::groups));
-    if (LLVM_UNLIKELY(namedCapturesRes == ExecutionStatus::EXCEPTION)) {
-      return ExecutionStatus::EXCEPTION;
-    }
-    if (!(*namedCapturesRes)->isUndefined()) {
-      namedCaptures.set(namedCapturesRes->get());
-      hasNamedCaptures = true;
-    }
-
     // m. If functionalReplace is true, then
     MutableHandle<StringPrimitive> replacement{runtime};
     if (replaceFn) {
       CallResult<PseudoHandle<>> callRes{ExecutionStatus::EXCEPTION};
       {
         // i. Let replacerArgs be «matched».
-        // Arguments: matched, captures, position, S (, groups).
-        size_t replacerArgsCount = 1 + nCaptures + 2 + hasNamedCaptures;
+        // Arguments: matched, captures, position, S.
+        size_t replacerArgsCount = 1 + nCaptures + 2;
         if (LLVM_UNLIKELY(replacerArgsCount >= UINT32_MAX))
           return runtime.raiseStackOverflow(
               Runtime::StackOverflowKind::JSRegisterStack);
@@ -1723,21 +1614,18 @@ regExpPrototypeSymbolReplace(void *, Runtime &runtime, NativeArgs args) {
           newFrame->getArgRef(argIdx) =
               capturesHandle->at(argIdx - 1).unboxToHV(runtime);
         }
-        // iii. Append position and S.
+        // iii. Append position and S as the last two elements of replacerArgs.
         newFrame->getArgRef(argIdx++) =
             HermesValue::encodeNumberValue(position);
         newFrame->getArgRef(argIdx++) = S.getHermesValue();
-        // iv. If namedCaptures is not undefined, then
-        if (hasNamedCaptures) {
-          newFrame->getArgRef(argIdx++) = *namedCaptures;
-        }
-        // v. Let replValue be Call(replaceValue, undefined, replacerArgs).
+
+        // iv. Let replValue be Call(replaceValue, undefined, replacerArgs).
         callRes = Callable::call(replaceFn, runtime);
         if (callRes == ExecutionStatus::EXCEPTION) {
           return ExecutionStatus::EXCEPTION;
         }
       }
-      // vi. Let replacement be ToString(replValue).
+      // v. Let replacement be ToString(replValue).
       auto strRes = toString_RJS(
           runtime, runtime.makeHandle(std::move(callRes.getValue())));
       if (LLVM_UNLIKELY(strRes == ExecutionStatus::EXCEPTION)) {
@@ -1746,30 +1634,10 @@ regExpPrototypeSymbolReplace(void *, Runtime &runtime, NativeArgs args) {
       replacement = strRes->get();
     } else {
       // n. Else,
-      // i. If namedCaptures is not undefined, then
-      if (hasNamedCaptures) {
-        auto objRes = toObject(runtime, namedCaptures);
-        if (LLVM_UNLIKELY(objRes == ExecutionStatus::EXCEPTION)) {
-          return ExecutionStatus::EXCEPTION;
-        }
-        // 1. Set namedCaptures to ? ToObject(namedCaptures).
-        namedCaptures.set(*objRes);
-      }
-
-      // ii. Let replacement be GetSubstitution(matched, S, position, captures,
+      // i. Let replacement be GetSubstitution(matched, S, position, captures,
       // replaceValue).
       auto callRes = getSubstitution(
-          runtime,
-          matched,
-          S,
-          position,
-          capturesHandle,
-          hasNamedCaptures ? Handle<JSObject>::vmcast(namedCaptures)
-                           : Runtime::makeNullHandle<JSObject>(),
-          replaceValueStr);
-      if (LLVM_UNLIKELY(callRes == ExecutionStatus::EXCEPTION)) {
-        return ExecutionStatus::EXCEPTION;
-      }
+          runtime, matched, S, position, capturesHandle, replaceValueStr);
       replacement = vmcast<StringPrimitive>(callRes.getValue());
     }
     // o. ReturnIfAbrupt(replacement).

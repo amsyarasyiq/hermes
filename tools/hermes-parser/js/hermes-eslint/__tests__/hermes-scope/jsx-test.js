@@ -24,7 +24,7 @@ describe('jsx', () => {
     const parserOptions = {jsxPragma: 'CustomReact'};
     const pragmaComment = `\x40jsx PragmaReact.foo`;
 
-    describe('Defaults', () => {
+    test('Defaults', () => {
       verifyHasScopes(
         `
           /**
@@ -38,27 +38,24 @@ describe('jsx', () => {
               {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
             ],
           },
         ],
       );
     });
-    describe('Explicit Option', () => {
+    test('Explicit Option', () => {
       verifyHasScopes(
         `
           /**
@@ -73,19 +70,16 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
             ],
           },
@@ -93,7 +87,7 @@ describe('jsx', () => {
         parserOptions,
       );
     });
-    describe('Comment pragma overrides defaults', () => {
+    test('Comment pragma overrides defaults', () => {
       verifyHasScopes(
         `
           /**
@@ -109,26 +103,23 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
             ],
           },
         ],
       );
     });
-    describe('Comment pragma overrides explicit option', () => {
+    test('Comment pragma overrides explicit option', () => {
       verifyHasScopes(
         `
           /**
@@ -144,19 +135,16 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
             ],
           },
@@ -183,7 +171,7 @@ describe('jsx', () => {
       * \x40jsxFrag PragmaFragment.bar
     `;
 
-    describe('Defaults', () => {
+    test('Defaults', () => {
       verifyHasScopes(
         `
           /**
@@ -197,39 +185,34 @@ describe('jsx', () => {
               {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomFragment',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaFragment',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
             ],
           },
         ],
       );
     });
-    describe('Explicit Option', () => {
+    test('Explicit Option', () => {
       verifyHasScopes(
         `
           /**
@@ -244,31 +227,26 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'CustomFragment',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaFragment',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
             ],
           },
@@ -276,7 +254,7 @@ describe('jsx', () => {
         parserOptions,
       );
     });
-    describe('Comment pragma overrides defaults', () => {
+    test('Comment pragma overrides defaults', () => {
       verifyHasScopes(
         `
           /**
@@ -292,38 +270,33 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomFragment',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'PragmaFragment',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
             ],
           },
         ],
       );
     });
-    describe('Comment pragma overrides explicit option', () => {
+    test('Comment pragma overrides explicit option', () => {
       verifyHasScopes(
         `
           /**
@@ -339,31 +312,26 @@ describe('jsx', () => {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomReact',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'CustomFragment',
                 type: DefinitionType.ImportBinding,
                 referenceCount: 0,
-                eslintUsed: false,
               },
               {
                 name: 'PragmaReact',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'PragmaFragment',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
             ],
           },
@@ -375,7 +343,7 @@ describe('jsx', () => {
 
   describe('fbt', () => {
     describe('with option', () => {
-      describe('identifier', () => {
+      test('identifier', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -390,12 +358,10 @@ describe('jsx', () => {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
                   referenceCount: 0,
-                  eslintUsed: false,
                 },
                 {
                   name: 'fbt',
                   type: DefinitionType.ImportBinding,
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
                 },
               ],
@@ -406,7 +372,7 @@ describe('jsx', () => {
           },
         );
       });
-      describe('identifier - fbs', () => {
+      test('identifier - fbs', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -421,12 +387,10 @@ describe('jsx', () => {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
                   referenceCount: 0,
-                  eslintUsed: false,
                 },
                 {
                   name: 'fbs',
                   type: DefinitionType.ImportBinding,
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
                 },
               ],
@@ -437,12 +401,11 @@ describe('jsx', () => {
           },
         );
       });
-      describe('namespace', () => {
+      test('namespace', () => {
         verifyHasScopes(
           `
             import React from 'react';
             import fbt from 'fbt';
-            let foo;
             <fbt:foo />;
           `,
           [
@@ -453,19 +416,11 @@ describe('jsx', () => {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
                   referenceCount: 0,
-                  eslintUsed: false,
                 },
                 {
                   name: 'fbt',
                   type: DefinitionType.ImportBinding,
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
-                },
-                {
-                  name: 'foo',
-                  type: DefinitionType.Variable,
-                  // the namespace name shouldn't reference the variable
-                  referenceCount: 0,
                 },
               ],
             },
@@ -475,7 +430,7 @@ describe('jsx', () => {
           },
         );
       });
-      describe('member expr', () => {
+      test('member expr', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -490,12 +445,10 @@ describe('jsx', () => {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
                   referenceCount: 0,
-                  eslintUsed: false,
                 },
                 {
                   name: 'fbt',
                   type: DefinitionType.ImportBinding,
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
                 },
               ],
@@ -508,7 +461,7 @@ describe('jsx', () => {
       });
     });
     describe('without option', () => {
-      describe('identifier', () => {
+      test('identifier', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -522,8 +475,7 @@ describe('jsx', () => {
                 {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
-                  referenceCount: 0,
-                  eslintUsed: true,
+                  referenceCount: 1,
                 },
                 {
                   name: 'fbt',
@@ -538,7 +490,7 @@ describe('jsx', () => {
           },
         );
       });
-      describe('namespace', () => {
+      test('namespace', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -552,15 +504,13 @@ describe('jsx', () => {
                 {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
-                  referenceCount: 0,
-                  eslintUsed: true,
+                  referenceCount: 1,
                 },
                 {
                   name: 'fbt',
                   type: DefinitionType.ImportBinding,
                   // follows the default rules and creates a reference
                   // due to the namespacing
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
                 },
               ],
@@ -571,7 +521,7 @@ describe('jsx', () => {
           },
         );
       });
-      describe('member expr', () => {
+      test('member expr', () => {
         verifyHasScopes(
           `
             import React from 'react';
@@ -585,15 +535,13 @@ describe('jsx', () => {
                 {
                   name: 'React',
                   type: DefinitionType.ImportBinding,
-                  referenceCount: 0,
-                  eslintUsed: true,
+                  referenceCount: 1,
                 },
                 {
                   name: 'fbt',
                   type: DefinitionType.ImportBinding,
                   // follows the default rules and creates a reference
                   // due to the namespacing
-                  // fbt is a direct, not indirect reference
                   referenceCount: 1,
                 },
               ],
@@ -608,7 +556,7 @@ describe('jsx', () => {
   });
 
   describe('Component name references', () => {
-    describe('Upper-case references name', () => {
+    test('Upper-case references name', () => {
       verifyHasScopes(
         `
           import React from 'react';
@@ -622,8 +570,7 @@ describe('jsx', () => {
               {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'Component',
@@ -636,7 +583,7 @@ describe('jsx', () => {
       );
     });
 
-    describe('Lower-case does not reference name', () => {
+    test('Lower-case does not reference name', () => {
       verifyHasScopes(
         `
           import React from 'react';
@@ -650,8 +597,7 @@ describe('jsx', () => {
               {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'component',
@@ -664,7 +610,7 @@ describe('jsx', () => {
       );
     });
 
-    describe('Member expressions are referenced regardless of casing', () => {
+    test('Member expressions are referenced regardless of casing', () => {
       verifyHasScopes(
         `
           import React from 'react';
@@ -681,8 +627,7 @@ describe('jsx', () => {
               {
                 name: 'React',
                 type: DefinitionType.ImportBinding,
-                referenceCount: 0,
-                eslintUsed: true,
+                referenceCount: 1,
               },
               {
                 name: 'lowerNamespacedName',
@@ -699,38 +644,5 @@ describe('jsx', () => {
         ],
       );
     });
-  });
-
-  describe('reference prior to the import should be correctly resolved', () => {
-    verifyHasScopes(
-      `
-jest.mock('Module', () => () => {
-  return <div />;
-});
-
-import * as React from 'react';
-    `,
-      [
-        {
-          type: ScopeType.Module,
-          variables: [
-            {
-              name: 'React',
-              type: DefinitionType.ImportBinding,
-              referenceCount: 0,
-              eslintUsed: true,
-            },
-          ],
-        },
-        {
-          type: ScopeType.Function,
-          variables: [],
-        },
-        {
-          type: ScopeType.Function,
-          variables: [],
-        },
-      ],
-    );
   });
 });

@@ -36,6 +36,12 @@ inline Handle<HiddenClass> Runtime::getHiddenClassForPrototype(
   return Handle<HiddenClass>::vmcast(clazz);
 }
 
+inline HiddenClass *Runtime::getHiddenClassForPrototypeRaw(
+    JSObject *proto,
+    unsigned reservedSlots) {
+  return *getHiddenClassForPrototype(proto, reservedSlots);
+}
+
 } // namespace vm
 } // namespace hermes
 

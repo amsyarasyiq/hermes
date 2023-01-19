@@ -34,49 +34,6 @@ describe('traverse', () => {
     expect(visitedNodes).toEqual(['Program', 'VariableDeclaration', 'Literal']);
   });
 
-  it('stops traversal', () => {
-    const code = 'const x = 1, y = 2;';
-    const {ast, scopeManager} = parseForESLint(code);
-
-    const visitedNodes = [];
-    traverse(code, ast, scopeManager, context => ({
-      '*'(node) {
-        visitedNodes.push(node.type);
-      },
-      VariableDeclarator() {
-        context.stopTraversal();
-      },
-    }));
-
-    expect(visitedNodes).toEqual([
-      'Program',
-      'VariableDeclaration',
-      'VariableDeclarator',
-    ]);
-  });
-
-  it('skips traversal', () => {
-    const code = 'const x = 1, y = 2;';
-    const {ast, scopeManager} = parseForESLint(code);
-
-    const visitedNodes = [];
-    traverse(code, ast, scopeManager, context => ({
-      '*'(node) {
-        visitedNodes.push(node.type);
-      },
-      VariableDeclarator() {
-        context.skipTraversal();
-      },
-    }));
-
-    expect(visitedNodes).toEqual([
-      'Program',
-      'VariableDeclaration',
-      'VariableDeclarator',
-      'VariableDeclarator',
-    ]);
-  });
-
   it('visits the AST in the correct order - traversed as defined by the visitor keys', () => {
     const code = 'const x = 1;';
     const {ast, scopeManager} = parseForESLint(code);
@@ -95,6 +52,25 @@ describe('traverse', () => {
       'Identifier',
       'Literal',
     ]);
+  });
+
+  it('sets the parent pointers', () => {
+    const code = 'const x = 1;';
+    const {ast, scopeManager} = parseForESLint(code);
+
+    expect(ast.body[0]).not.toHaveProperty('parent');
+    traverse(code, ast, scopeManager, () => ({
+      '*'(node) {
+        expect(node).toHaveProperty('parent');
+        if (node.type === 'Program') {
+          // eslint-disable-next-line jest/no-conditional-expect
+          expect(node.parent).toBeNull();
+        } else {
+          // eslint-disable-next-line jest/no-conditional-expect
+          expect(node.parent).toHaveProperty('type');
+        }
+      },
+    }));
   });
 
   it('passes an immutable context object', () => {

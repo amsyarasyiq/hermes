@@ -50,7 +50,7 @@ describe('Type and value references', () => {
     name: string,
     definitionType: 'ClassName' | 'Enum',
   ) {
-    test(code, () => {
+    it(code, () => {
       const {scopeManager} = parseForESLint(code);
 
       // Verify that scope contains a single variable
@@ -118,7 +118,7 @@ describe('Type definitions', () => {
     expect(variable.defs[0].type).toEqual(DefinitionType.Type);
   }
 
-  describe('TypeAlias', () => {
+  test('TypeAlias', () => {
     const {scopeManager} = parseForESLint(`
       type T = number;
       (1: T);
@@ -126,7 +126,7 @@ describe('Type definitions', () => {
     verifyTypeDefinition(scopeManager);
   });
 
-  describe('OpaqueType', () => {
+  test('OpaqueType', () => {
     const {scopeManager} = parseForESLint(`
       opaque type T = number;
       (1: T);
@@ -134,7 +134,7 @@ describe('Type definitions', () => {
     verifyTypeDefinition(scopeManager);
   });
 
-  describe('InterfaceDeclaration', () => {
+  test('InterfaceDeclaration', () => {
     const {scopeManager} = parseForESLint(`
       interface T {}
       (1: T);
@@ -240,7 +240,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     }
   }
 
-  describe('Enum body', () => {
+  test('Enum body', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -255,7 +255,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('QualifiedTypeIdentifier', () => {
+  test('QualifiedTypeIdentifier', () => {
     verifyHasReferences(
       `
         import * as Foo from 'Foo';
@@ -272,7 +272,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('ObjectTypeProperty', () => {
+  test('ObjectTypeProperty', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -286,7 +286,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('ObjectTypeIndexer', () => {
+  test('ObjectTypeIndexer', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -300,7 +300,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('ObjectTypeInternalSlot', () => {
+  test('ObjectTypeInternalSlot', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -314,7 +314,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('FunctionTypeParam', () => {
+  test('FunctionTypeParam', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -328,7 +328,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('MemberExpression', () => {
+  test('MemberExpression', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -342,7 +342,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('OptionalMemberExpression', () => {
+  test('OptionalMemberExpression', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -356,7 +356,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('CallExpression', () => {
+  test('CallExpression', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -374,7 +374,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('OptionalCallExpression', () => {
+  test('OptionalCallExpression', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -392,7 +392,7 @@ describe('Identifiers not mistakenly treated as references', () => {
     );
   });
 
-  describe('PropertyDefinition', () => {
+  test('PropertyDefinition', () => {
     verifyHasReferences(
       `
         import Foo from 'Foo';
@@ -443,7 +443,7 @@ describe('Type parameters', () => {
     expect(scopeManager.scopes[1].type).toEqual(ScopeType.Module);
   });
 
-  describe('TypeAlias', () => {
+  test('TypeAlias', () => {
     // Type alias contains type parameter in Type scope
     verifyHasScopes(`type Foo<T> = T;`, [
       {
@@ -469,7 +469,7 @@ describe('Type parameters', () => {
     ]);
   });
 
-  describe('OpaqueType', () => {
+  test('OpaqueType', () => {
     // Opaque type contains type parameter in Type scope
     verifyHasScopes(`opaque type Foo<T> = T;`, [
       {
@@ -495,7 +495,7 @@ describe('Type parameters', () => {
     ]);
   });
 
-  describe('InterfaceDeclaration', () => {
+  test('InterfaceDeclaration', () => {
     // Interface declaration contains type parameter in Type scope
     verifyHasScopes(`interface Foo<T> { prop: T }`, [
       {
@@ -521,7 +521,7 @@ describe('Type parameters', () => {
     ]);
   });
 
-  describe('FunctionTypeAnnotation', () => {
+  test('FunctionTypeAnnotation', () => {
     // FunctionTypeAnnotation contains type parameter in Type scope
     verifyHasScopes(`(1: <T>(T) => void);`, [
       {
@@ -541,7 +541,7 @@ describe('Type parameters', () => {
     ]);
   });
 
-  describe('DeclareClass', () => {
+  test('DeclareClass', () => {
     // DeclareClass contains type parameter in Type scope
     verifyHasScopes(`declare class C<T> { prop: T }`, [
       {
@@ -567,7 +567,7 @@ describe('Type parameters', () => {
     ]);
   });
 
-  describe('FunctionDeclaration', () => {
+  test('FunctionDeclaration', () => {
     // Function contains type parameter in Function scope alongside value parameter
     verifyHasScopes(
       `
@@ -610,7 +610,7 @@ describe('Type parameters', () => {
     );
   });
 
-  describe('FunctionExpression', () => {
+  test('FunctionExpression', () => {
     verifyHasScopes(
       `
         (function foo<T>(x) {
@@ -656,7 +656,7 @@ describe('Type parameters', () => {
     );
   });
 
-  describe('Class', () => {
+  test('Class', () => {
     // Class contains type parameter in Class scope
     verifyHasScopes(
       `
@@ -696,7 +696,7 @@ describe('Type parameters', () => {
 });
 
 describe('Flow type nodes in Patterns', () => {
-  describe('Identifier', () => {
+  test('Identifier', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -734,7 +734,7 @@ describe('Flow type nodes in Patterns', () => {
     );
   });
 
-  describe('ArrayPattern', () => {
+  test('ArrayPattern', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -772,7 +772,7 @@ describe('Flow type nodes in Patterns', () => {
     );
   });
 
-  describe('ObjectPattern', () => {
+  test('ObjectPattern', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -810,7 +810,7 @@ describe('Flow type nodes in Patterns', () => {
     );
   });
 
-  describe('RestElement', () => {
+  test('RestElement', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -842,7 +842,7 @@ describe('Flow type nodes in Patterns', () => {
     );
   });
 
-  describe('Nested patterns', () => {
+  test('Nested patterns', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -881,7 +881,7 @@ describe('Flow type nodes in Patterns', () => {
 });
 
 describe('Declare statements', () => {
-  describe('DeclareTypeAlias', () => {
+  test('DeclareTypeAlias', () => {
     verifyHasScopes(
       `
         declare type T = number;
@@ -902,7 +902,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareOpaqueType', () => {
+  test('DeclareOpaqueType', () => {
     verifyHasScopes(
       `
         declare opaque type T: number;
@@ -923,7 +923,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareInterface', () => {
+  test('DeclareInterface', () => {
     verifyHasScopes(
       `
         declare interface I {};
@@ -944,7 +944,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareVariable', () => {
+  test('DeclareVariable', () => {
     verifyHasScopes(`declare var Foo: typeof Foo;`, [
       {
         type: ScopeType.Module,
@@ -959,7 +959,7 @@ describe('Declare statements', () => {
     ]);
   });
 
-  describe('DeclareFunction', () => {
+  test('DeclareFunction', () => {
     verifyHasScopes(
       `
         declare function Foo(): void;
@@ -980,7 +980,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareClass', () => {
+  test('DeclareClass', () => {
     verifyHasScopes(
       `
         declare class C {}
@@ -1001,7 +1001,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareModuleExports', () => {
+  test('DeclareModuleExports', () => {
     verifyHasScopes(
       `
         import type {Foo} from 'foo';
@@ -1022,7 +1022,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareModule', () => {
+  test('DeclareModule', () => {
     verifyHasScopes(
       `
         declare module Foo {
@@ -1090,7 +1090,7 @@ describe('Declare statements', () => {
     expect(references[1].resolved).toBe(null);
   });
 
-  describe('DeclareModule DeclareModuleExports', () => {
+  test('DeclareModule DeclareModuleExports', () => {
     verifyHasScopes(
       `
         import {module, exports} from 'Foo';
@@ -1129,7 +1129,7 @@ describe('Declare statements', () => {
     );
   });
 
-  describe('DeclareModule DeclareExportDeclaration', () => {
+  test('DeclareModule DeclareExportDeclaration', () => {
     // Verify that all declare export nodes introduce a definition, with a single
     // additional reference in the declare module body.
     verifyHasScopes(
@@ -1192,7 +1192,7 @@ describe('Declare statements', () => {
 });
 
 describe('Flow specific properties visited on non-Flow nodes', () => {
-  describe('Function', () => {
+  test('Function', () => {
     // Return type is visited, but predicate is NOT visited
     verifyHasScopes(
       `
@@ -1235,7 +1235,7 @@ describe('Flow specific properties visited on non-Flow nodes', () => {
     );
   });
 
-  describe('Class', () => {
+  test('Class', () => {
     // Supertype parameters and implements are visited
     verifyHasScopes(
       `
@@ -1290,7 +1290,7 @@ describe('Flow specific properties visited on non-Flow nodes', () => {
 });
 
 describe('PropertyDefinition', () => {
-  describe('PropertyDefinition', () => {
+  it('PropertyDefinition', () => {
     verifyHasScopes(
       `
         import Foo from 'Foo';
@@ -1346,7 +1346,7 @@ describe('PropertyDefinition', () => {
 });
 
 describe('FunctionExpression', () => {
-  describe('Function name not referenced in return type', () => {
+  test('Function name not referenced in return type', () => {
     verifyHasScopes(`(function foo(): foo {});`, [
       {
         type: ScopeType.Module,
@@ -1439,7 +1439,7 @@ describe('FunctionExpression', () => {
 });
 
 describe('This type annotation', () => {
-  describe('Is not treated as a parameter', () => {
+  test('Is not treated as a parameter', () => {
     verifyHasScopes(
       `
         function foo(this: string, param: number) {
@@ -1476,7 +1476,7 @@ describe('This type annotation', () => {
     );
   });
 
-  describe('Type annotation is still visited', () => {
+  test('Type annotation is still visited', () => {
     verifyHasScopes(
       `
         type T = string;
@@ -1513,7 +1513,7 @@ describe('This type annotation', () => {
   });
 
   describe('this annotation can reference generics', () => {
-    describe('function decl', () => {
+    test('function decl', () => {
       verifyHasScopes(
         `
           function foo<This>(this: This) {}
@@ -1547,7 +1547,7 @@ describe('This type annotation', () => {
         ],
       );
     });
-    describe('function expr', () => {
+    test('function expr', () => {
       verifyHasScopes(
         `
           const foo = function <This>(this: This) {};
@@ -1581,7 +1581,7 @@ describe('This type annotation', () => {
         ],
       );
     });
-    describe('function type1', () => {
+    test('function type1', () => {
       verifyHasScopes(
         `
           type foo = <This>(this: This) => void;
@@ -1610,7 +1610,7 @@ describe('This type annotation', () => {
         ],
       );
     });
-    describe('function type2', () => {
+    test('function type2', () => {
       verifyHasScopes(
         `
           type foo<This> = (this: This) => void;
@@ -1644,7 +1644,7 @@ describe('This type annotation', () => {
 
 describe('Imports', () => {
   describe('default', () => {
-    describe('import type', () => {
+    it('import type', () => {
       verifyHasScopes(
         `
           import type RefValue from 'foo';
@@ -1682,7 +1682,7 @@ describe('Imports', () => {
       );
     });
 
-    describe('import typeof', () => {
+    it('import typeof', () => {
       verifyHasScopes(
         `
           import typeof RefValue from 'foo';
@@ -1720,7 +1720,7 @@ describe('Imports', () => {
       );
     });
 
-    describe('import value', () => {
+    it('import value', () => {
       verifyHasScopes(
         `
           import RefValue from 'foo';
@@ -1761,7 +1761,7 @@ describe('Imports', () => {
 
   describe('named', () => {
     describe('top-level', () => {
-      describe('import type', () => {
+      it('import type', () => {
         verifyHasScopes(
           `
             import type {RefValue} from 'foo';
@@ -1799,7 +1799,7 @@ describe('Imports', () => {
         );
       });
 
-      describe('import typeof', () => {
+      it('import typeof', () => {
         verifyHasScopes(
           `
             import typeof {RefValue} from 'foo';
@@ -1837,7 +1837,7 @@ describe('Imports', () => {
         );
       });
 
-      describe('import value', () => {
+      it('import value', () => {
         verifyHasScopes(
           `
             import {RefValue} from 'foo';
@@ -1877,7 +1877,7 @@ describe('Imports', () => {
     });
 
     describe('inline', () => {
-      describe('import type', () => {
+      it('import type', () => {
         verifyHasScopes(
           `
             import {type RefValue} from 'foo';
@@ -1915,7 +1915,7 @@ describe('Imports', () => {
         );
       });
 
-      describe('import typeof', () => {
+      it('import typeof', () => {
         verifyHasScopes(
           `
             import {typeof RefValue} from 'foo';
@@ -1955,7 +1955,7 @@ describe('Imports', () => {
     });
   });
 
-  describe('namespace', () => {
+  it('namespace', () => {
     verifyHasScopes(
       `
         import * as RefValue from 'foo';

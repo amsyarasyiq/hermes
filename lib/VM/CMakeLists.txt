@@ -48,16 +48,14 @@ set(source_files
   Operations.cpp
   PredefinedStringIDs.cpp
   PrimitiveBox.cpp
+  Profiler.cpp
   PropertyAccessor.cpp
   Runtime.cpp Runtime-profilers.cpp
   RuntimeModule.cpp
-  Profiler/ChromeTraceSerializer.cpp
+  Profiler/ChromeTraceSerializerPosix.cpp
   Profiler/CodeCoverageProfiler.cpp
   Profiler/InlineCacheProfiler.cpp
-  Profiler/SamplingProfiler.cpp
   Profiler/SamplingProfilerPosix.cpp
-  Profiler/SamplingProfilerWindows.cpp
-  Profiler/SamplingProfilerSampler.cpp
   SegmentedArray.cpp
   SerializedLiteralParser.cpp
   SingleObject.cpp
@@ -164,7 +162,6 @@ endif()
 set(link_libs
   hermesADT
   hermesInst
-  hermesRegex
   hermesSupport
   hermesPlatform
   hermesInternalBytecode

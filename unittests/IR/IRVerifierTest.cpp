@@ -28,10 +28,7 @@ TEST(IRVerifierTest, BasicBlockTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "forEach",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "forEach", Function::DefinitionKind::ES5Function, true);
   auto Arg1 = Builder.createParameter(F, "num");
   auto Arg2 = Builder.createParameter(F, "value");
 
@@ -68,10 +65,7 @@ TEST(IRVerifierTest, ReturnInstTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testReturn",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testReturn", Function::DefinitionKind::ES5Function, true);
   auto Arg1 = Builder.createParameter(F, "num");
   Arg1->setType(Type::createNumber());
 
@@ -94,10 +88,7 @@ TEST(IRVerifierTest, BranchInstTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testBranch",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testBranch", Function::DefinitionKind::ES5Function, true);
 
   auto BB1 = Builder.createBasicBlock(F);
   auto BB2 = Builder.createBasicBlock(F);
@@ -122,10 +113,7 @@ TEST(IRVerifierTest, DominanceTest) {
   Module M{Ctx};
   IRBuilder Builder(&M);
   auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testBranch",
-      Function::DefinitionKind::ES5Function,
-      true);
+      "testBranch", Function::DefinitionKind::ES5Function, true);
   auto Arg1 = Builder.createParameter(F, "num");
 
   auto Body = Builder.createBasicBlock(F);
@@ -140,21 +128,6 @@ TEST(IRVerifierTest, DominanceTest) {
   EXPECT_FALSE(verifyModule(M, &errs()));
 }
 
-TEST(IRVerifierTest, ScopeWithoutVariableScope) {
-  auto Ctx = std::make_shared<Context>();
-  Module M{Ctx};
-  IRBuilder Builder(&M);
-  auto F = Builder.createFunction(
-      M.getInitialScope()->createInnerScope(),
-      "testScopeWithoutVariableScope",
-      Function::DefinitionKind::ES5Function,
-      true);
-  Builder.setInsertionBlock(Builder.createBasicBlock(F));
-  Builder.createUnreachableInst();
-
-  F->getFunctionScopeDesc()->createInnerScope();
-  EXPECT_TRUE(verifyModule(M, &errs()));
-}
 #endif // HERMES_SLOW_DEBUG
 
 } // end anonymous namespace

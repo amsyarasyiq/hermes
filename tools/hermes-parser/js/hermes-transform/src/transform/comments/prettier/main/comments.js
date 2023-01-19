@@ -57,8 +57,7 @@ function getSortedChildNodes(node, options, resultArray) {
             key !== 'precedingNode' &&
             key !== 'followingNode' &&
             key !== 'tokens' &&
-            key !== 'comments' &&
-            key !== 'parent',
+            key !== 'comments',
         )
         .map(([, value]) => value));
 

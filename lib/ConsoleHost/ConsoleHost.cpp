@@ -275,9 +275,8 @@ bool executeHBCBytecodeImpl(
   }
 
   if (options.timeLimit > 0) {
-    runtime->timeLimitMonitor = vm::TimeLimitMonitor::getOrCreate();
-    runtime->timeLimitMonitor->watchRuntime(
-        *runtime, std::chrono::milliseconds(options.timeLimit));
+    vm::TimeLimitMonitor::getInstance().watchRuntime(
+        *runtime, options.timeLimit);
   }
 
   if (shouldRecordGCStats) {
@@ -319,11 +318,9 @@ bool executeHBCBytecodeImpl(
     return true;
   }
 
-#if HERMESVM_SAMPLING_PROFILER_AVAILABLE
   if (options.sampleProfiling) {
     vm::SamplingProfiler::enable();
   }
-#endif // HERMESVM_SAMPLING_PROFILER_AVAILABLE
 
   llvh::StringRef sourceURL{};
   if (filename)
@@ -334,12 +331,10 @@ bool executeHBCBytecodeImpl(
       sourceURL,
       vm::Runtime::makeNullHandle<vm::Environment>());
 
-#if HERMESVM_SAMPLING_PROFILER_AVAILABLE
   if (options.sampleProfiling) {
     vm::SamplingProfiler::disable();
     vm::SamplingProfiler::dumpChromeTraceGlobal(llvh::errs());
   }
-#endif // HERMESVM_SAMPLING_PROFILER_AVAILABLE
 
   bool threwException = status == vm::ExecutionStatus::EXCEPTION;
 
@@ -374,12 +369,24 @@ bool executeHBCBytecodeImpl(
     }
   }
 
+  if (options.timeLimit > 0) {
+    vm::TimeLimitMonitor::getInstance().unwatchRuntime(*runtime);
+  }
+
 #ifdef HERMESVM_PROFILER_OPCODE
   runtime->dumpOpcodeStats(llvh::outs());
 #endif
 
 #ifdef HERMESVM_PROFILER_JSFUNCTION
   runtime->dumpJSFunctionStats();
+#endif
+
+#ifdef HERMESVM_PROFILER_EXTERN
+  if (options.patchProfilerSymbols) {
+    patchProfilerSymbols(runtime.get());
+  } else {
+    dumpProfilerSymbolMap(runtime.get(), options.profilerSymbolsFile);
+  }
 #endif
 
 #ifdef HERMESVM_PROFILER_NATIVECALL

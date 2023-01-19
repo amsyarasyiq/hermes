@@ -5,10 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::rc::Rc;
-
 use crate::ast;
 use crate::ast::node_isa;
 use crate::ast::GCLock;
@@ -17,6 +13,9 @@ use crate::ast::NodePtr;
 use crate::ast::Path;
 use crate::ast::VariableDeclarationKind;
 use crate::ast::Visitor;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 /// List of all declarations in a scope.
 pub type ScopeDecls<'gc> = Vec<&'gc Node<'gc>>;

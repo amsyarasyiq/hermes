@@ -152,7 +152,6 @@ static bool run(Function *F) {
       changed = true;
       builder.setInsertionPoint(callInst);
       builder.setLocation(callInst->getLocation());
-      builder.setCurrentSourceLevelScope(callInst->getSourceLevelScope());
 
       llvh::SmallVector<Value *, 8> args{};
       unsigned numArgsExcludingThis = callInst->getNumArguments() - 1;
