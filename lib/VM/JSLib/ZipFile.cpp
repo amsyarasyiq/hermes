@@ -124,7 +124,7 @@ zipFileReadEntry(void *, Runtime &runtime, NativeArgs args) {
     auto buffer = runtime.makeHandle(JSArrayBuffer::create(
         runtime, Handle<JSObject>::vmcast(&runtime.arrayBufferPrototype)));
     if (LLVM_UNLIKELY(
-            buffer->createDataBlock(runtime, buffer, size, false) ==
+            buffer->createDataBlock(runtime, size, false) ==
             ExecutionStatus::EXCEPTION)) {
       return ExecutionStatus::EXCEPTION;
     }

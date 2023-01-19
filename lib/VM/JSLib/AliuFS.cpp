@@ -221,7 +221,7 @@ aliuFSreadFile(void *, Runtime &runtime, NativeArgs args) {
         runtime, Handle<JSObject>::vmcast(&runtime.arrayBufferPrototype)));
 
     if (LLVM_UNLIKELY(
-            buffer->createDataBlock(runtime, buffer, size, false) ==
+            buffer->createDataBlock(runtime, size, false) ==
             ExecutionStatus::EXCEPTION)) {
       fclose(f);
       return ExecutionStatus::EXCEPTION;
@@ -229,7 +229,7 @@ aliuFSreadFile(void *, Runtime &runtime, NativeArgs args) {
 
     if (fread(buffer->getDataBlock(runtime), sizeof(uint8_t), size, f) != size) {
       fclose(f);
-      buffer->detach(runtime, buffer);
+      buffer->detach(runtime.getHeap());
       return runtime.raiseError(strerror(errno));
     }
 
