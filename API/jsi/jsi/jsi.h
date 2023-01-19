@@ -68,6 +68,7 @@ class Runtime;
 class Pointer;
 class PropNameID;
 class Symbol;
+class BigInt;
 class String;
 class Object;
 class WeakObject;
@@ -240,6 +241,7 @@ class JSI_EXPORT Runtime {
   friend class Pointer;
   friend class PropNameID;
   friend class Symbol;
+  friend class BigInt;
   friend class String;
   friend class Object;
   friend class WeakObject;
@@ -263,6 +265,7 @@ class JSI_EXPORT Runtime {
   };
 
   virtual PointerValue* cloneSymbol(const Runtime::PointerValue* pv) = 0;
+  virtual PointerValue* cloneBigInt(const Runtime::PointerValue* pv) = 0;
   virtual PointerValue* cloneString(const Runtime::PointerValue* pv) = 0;
   virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) = 0;
   virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) = 0;
@@ -274,6 +277,7 @@ class JSI_EXPORT Runtime {
       const uint8_t* utf8,
       size_t length) = 0;
   virtual PropNameID createPropNameIDFromString(const String& str) = 0;
+  virtual PropNameID createPropNameIDFromSymbol(const Symbol& sym) = 0;
   virtual std::string utf8(const PropNameID&) = 0;
   virtual bool compare(const PropNameID&, const PropNameID&) = 0;
 
@@ -336,6 +340,7 @@ class JSI_EXPORT Runtime {
   virtual void popScope(ScopeState*);
 
   virtual bool strictEquals(const Symbol& a, const Symbol& b) const = 0;
+  virtual bool strictEquals(const BigInt& a, const BigInt& b) const = 0;
   virtual bool strictEquals(const String& a, const String& b) const = 0;
   virtual bool strictEquals(const Object& a, const Object& b) const = 0;
 
@@ -406,6 +411,7 @@ class JSI_EXPORT PropNameID : public Pointer {
   }
 
   /// Create a PropNameID from utf8 values.  The data is copied.
+  /// Results are undefined if \p utf8 contains invalid code points.
   static PropNameID
   forUtf8(Runtime& runtime, const uint8_t* utf8, size_t length) {
     return runtime.createPropNameIDFromUtf8(utf8, length);
@@ -413,6 +419,7 @@ class JSI_EXPORT PropNameID : public Pointer {
 
   /// Create a PropNameID from utf8-encoded octets stored in a
   /// std::string.  The string data is transformed and copied.
+  /// Results are undefined if \p utf8 contains invalid code points.
   static PropNameID forUtf8(Runtime& runtime, const std::string& utf8) {
     return runtime.createPropNameIDFromUtf8(
         reinterpret_cast<const uint8_t*>(utf8.data()), utf8.size());
@@ -421,6 +428,11 @@ class JSI_EXPORT PropNameID : public Pointer {
   /// Create a PropNameID from a JS string.
   static PropNameID forString(Runtime& runtime, const jsi::String& str) {
     return runtime.createPropNameIDFromString(str);
+  }
+
+  /// Create a PropNameID from a JS symbol.
+  static PropNameID forSymbol(Runtime& runtime, const jsi::Symbol& sym) {
+    return runtime.createPropNameIDFromSymbol(sym);
   }
 
   // Creates a vector of PropNameIDs constructed from given arguments.
@@ -474,6 +486,18 @@ class JSI_EXPORT Symbol : public Pointer {
   friend class Value;
 };
 
+/// Represents a JS BigInt.  Movable, not copyable.
+class JSI_EXPORT BigInt : public Pointer {
+ public:
+  using Pointer::Pointer;
+
+  BigInt(BigInt&& other) = default;
+  BigInt& operator=(BigInt&& other) = default;
+
+  friend class Runtime;
+  friend class Value;
+};
+
 /// Represents a JS String.  Movable, not copyable.
 class JSI_EXPORT String : public Pointer {
  public:
@@ -502,14 +526,16 @@ class JSI_EXPORT String : public Pointer {
   }
 
   /// Create a JS string from utf8-encoded octets.  The string data is
-  /// transformed and copied.
+  /// transformed and copied.  Results are undefined if \p utf8 contains invalid
+  /// code points.
   static String
   createFromUtf8(Runtime& runtime, const uint8_t* utf8, size_t length) {
     return runtime.createStringFromUtf8(utf8, length);
   }
 
   /// Create a JS string from utf8-encoded octets stored in a
-  /// std::string.  The string data is transformed and copied.
+  /// std::string.  The string data is transformed and copied.  Results are
+  /// undefined if \p utf8 contains invalid code points.
   static String createFromUtf8(Runtime& runtime, const std::string& utf8) {
     return runtime.createStringFromUtf8(
         reinterpret_cast<const uint8_t*>(utf8.data()), utf8.length());
@@ -963,6 +989,7 @@ class JSI_EXPORT Value {
   /* implicit */ Value(T&& other) : Value(kindOf(other)) {
     static_assert(
         std::is_base_of<Symbol, T>::value ||
+            std::is_base_of<BigInt, T>::value ||
             std::is_base_of<String, T>::value ||
             std::is_base_of<Object, T>::value,
         "Value cannot be implicitly move-constructed from this type");
@@ -982,7 +1009,12 @@ class JSI_EXPORT Value {
 
   /// Copies a Symbol lvalue into a new JS value.
   Value(Runtime& runtime, const Symbol& sym) : Value(SymbolKind) {
-    new (&data_.pointer) String(runtime.cloneSymbol(sym.ptr_));
+    new (&data_.pointer) Symbol(runtime.cloneSymbol(sym.ptr_));
+  }
+
+  /// Copies a BigInt lvalue into a new JS value.
+  Value(Runtime& runtime, const BigInt& bigint) : Value(BigIntKind) {
+    new (&data_.pointer) BigInt(runtime.cloneBigInt(bigint.ptr_));
   }
 
   /// Copies a String lvalue into a new JS value.
@@ -1054,6 +1086,10 @@ class JSI_EXPORT Value {
     return kind_ == StringKind;
   }
 
+  bool isBigInt() const {
+    return kind_ == BigIntKind;
+  }
+
   bool isSymbol() const {
     return kind_ == SymbolKind;
   }
@@ -1067,6 +1103,10 @@ class JSI_EXPORT Value {
     assert(isBool());
     return data_.boolean;
   }
+
+  /// \return the boolean value, or throws JSIException if not a
+  /// boolean.
+  bool asBool() const;
 
   /// \return the number value, or asserts if not a number.
   double getNumber() const {
@@ -1097,6 +1137,26 @@ class JSI_EXPORT Value {
   /// symbol
   Symbol asSymbol(Runtime& runtime) const&;
   Symbol asSymbol(Runtime& runtime) &&;
+
+  /// \return the BigInt value, or asserts if not a bigint.
+  BigInt getBigInt(Runtime& runtime) const& {
+    assert(isBigInt());
+    return BigInt(runtime.cloneBigInt(data_.pointer.ptr_));
+  }
+
+  /// \return the BigInt value, or asserts if not a bigint.
+  /// Can be used on rvalue references to avoid cloning more bigints.
+  BigInt getBigInt(Runtime&) && {
+    assert(isBigInt());
+    auto ptr = data_.pointer.ptr_;
+    data_.pointer.ptr_ = nullptr;
+    return static_cast<BigInt>(ptr);
+  }
+
+  /// \return the BigInt value, or throws JSIException if not a
+  /// bigint
+  BigInt asBigInt(Runtime& runtime) const&;
+  BigInt asBigInt(Runtime& runtime) &&;
 
   /// \return the String value, or asserts if not a string.
   String getString(Runtime& runtime) const& {
@@ -1150,6 +1210,7 @@ class JSI_EXPORT Value {
     BooleanKind,
     NumberKind,
     SymbolKind,
+    BigIntKind,
     StringKind,
     ObjectKind,
     PointerKind = SymbolKind,
@@ -1175,6 +1236,9 @@ class JSI_EXPORT Value {
 
   constexpr static ValueKind kindOf(const Symbol&) {
     return SymbolKind;
+  }
+  constexpr static ValueKind kindOf(const BigInt&) {
+    return BigIntKind;
   }
   constexpr static ValueKind kindOf(const String&) {
     return StringKind;
@@ -1238,11 +1302,13 @@ class JSI_EXPORT JSIException : public std::exception {
   JSIException(std::string what) : what_(std::move(what)){};
 
  public:
+  JSIException(const JSIException&) = default;
+
   virtual const char* what() const noexcept override {
     return what_.c_str();
   }
 
-  virtual ~JSIException();
+  virtual ~JSIException() override;
 
  protected:
   std::string what_;
@@ -1253,6 +1319,8 @@ class JSI_EXPORT JSIException : public std::exception {
 class JSI_EXPORT JSINativeException : public JSIException {
  public:
   JSINativeException(std::string what) : JSIException(std::move(what)) {}
+
+  JSINativeException(const JSINativeException&) = default;
 
   virtual ~JSINativeException();
 };
@@ -1282,6 +1350,8 @@ class JSI_EXPORT JSError : public JSIException {
   /// set to provided message.  This argument order is a bit weird,
   /// but necessary to avoid ambiguity with the above.
   JSError(std::string what, Runtime& rt, Value&& value);
+
+  JSError(const JSError&) = default;
 
   virtual ~JSError();
 

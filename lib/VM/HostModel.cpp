@@ -38,30 +38,29 @@ void FinalizableNativeFunctionBuildMeta(
   mb.addJSObjectOverlapSlots(
       JSObject::numOverlapSlots<FinalizableNativeFunction>());
   NativeFunctionBuildMeta(cell, mb);
-  mb.setVTable(&FinalizableNativeFunction::vt.base.base);
+  mb.setVTable(&FinalizableNativeFunction::vt);
 }
 
 CallResult<HermesValue> FinalizableNativeFunction::createWithoutPrototype(
-    Runtime *runtime,
+    Runtime &runtime,
     void *context,
     NativeFunctionPtr functionPtr,
     FinalizeNativeFunctionPtr finalizePtr,
     SymbolID name,
     unsigned paramCount) {
-  auto parentHandle = Handle<JSObject>::vmcast(&runtime->functionPrototype);
+  auto parentHandle = Handle<JSObject>::vmcast(&runtime.functionPrototype);
 
-  auto *cell =
-      runtime->makeAFixed<FinalizableNativeFunction, HasFinalizer::Yes>(
-          runtime,
-          parentHandle,
-          runtime->getHiddenClassForPrototype(
-              *parentHandle, numOverlapSlots<FinalizableNativeFunction>()),
-          context,
-          functionPtr,
-          finalizePtr);
+  auto *cell = runtime.makeAFixed<FinalizableNativeFunction, HasFinalizer::Yes>(
+      runtime,
+      parentHandle,
+      runtime.getHiddenClassForPrototype(
+          *parentHandle, numOverlapSlots<FinalizableNativeFunction>()),
+      context,
+      functionPtr,
+      finalizePtr);
   auto selfHandle = JSObjectInit::initToHandle(runtime, cell);
 
-  auto prototypeObjectHandle = runtime->makeNullHandle<JSObject>();
+  auto prototypeObjectHandle = runtime.makeNullHandle<JSObject>();
 
   auto st = defineNameLengthAndPrototype(
       selfHandle,
@@ -96,19 +95,19 @@ const ObjectVTable HostObject::vt{
 
 void HostObjectBuildMeta(const GCCell *cell, Metadata::Builder &mb) {
   mb.addJSObjectOverlapSlots(JSObject::numOverlapSlots<HostObject>());
-  ObjectBuildMeta(cell, mb);
-  mb.setVTable(&HostObject::vt.base);
+  JSObjectBuildMeta(cell, mb);
+  mb.setVTable(&HostObject::vt);
 }
 
 CallResult<HermesValue> HostObject::createWithoutPrototype(
-    Runtime *runtime,
+    Runtime &runtime,
     std::unique_ptr<HostObjectProxy> proxy) {
-  auto parentHandle = Handle<JSObject>::vmcast(&runtime->objectPrototype);
+  auto parentHandle = Handle<JSObject>::vmcast(&runtime.objectPrototype);
 
-  HostObject *hostObj = runtime->makeAFixed<HostObject, HasFinalizer::Yes>(
+  HostObject *hostObj = runtime.makeAFixed<HostObject, HasFinalizer::Yes>(
       runtime,
       parentHandle,
-      runtime->getHiddenClassForPrototype(
+      runtime.getHiddenClassForPrototype(
           *parentHandle, numOverlapSlots<HostObject>()),
       std::move(proxy));
 

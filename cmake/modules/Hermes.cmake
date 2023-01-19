@@ -133,6 +133,7 @@ function(add_hermes_executable name)
   cmake_parse_arguments(ARG "" "" "LINK_LIBS" ${ARGN})
   add_executable(${name} ${ARG_UNPARSED_ARGUMENTS})
   target_link_libraries(${name} ${ARG_LINK_LIBS} ${HERMES_LINK_COMPONENTS})
+  target_link_options(${name} PRIVATE ${HERMES_EXTRA_LINKER_FLAGS})
   hermes_update_compile_flags(${name})
 endfunction(add_hermes_executable)
 
@@ -406,7 +407,7 @@ if (GCC_COMPATIBLE)
   # Release() (PR32286).
   if (NOT CMAKE_COMPILER_IS_GNUCXX AND NOT WIN32)
     set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++14 -Werror=non-virtual-dtor")
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++17 -Werror=non-virtual-dtor")
     CHECK_CXX_SOURCE_COMPILES("class base {public: virtual void anchor();protected: ~base();};
                              class derived final : public base { public: ~derived();};
                              int main() { return 0; }"
