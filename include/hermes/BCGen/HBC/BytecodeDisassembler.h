@@ -58,17 +58,6 @@ std::string formatString(const char *format, Ts... args) {
 std::pair<int, SerializedLiteralGenerator::TagType> checkBufferTag(
     const unsigned char *buff);
 
-/// Check if the zero based \p operandIndex in instruction \p opCode is a
-/// string table ID.
-static bool isOperandStringID(inst::OpCode opCode, unsigned operandIndex) {
-#define OPERAND_STRING_ID(name, operandNumber)                     \
-  if (opCode == inst::OpCode::name && operandIndex == operandNumber - 1) \
-    return true;
-#include "hermes/BCGen/HBC/BytecodeList.def"
-
-  return false;
-}
-
 /// Base class for walking bytecodes of a function.
 class BytecodeVisitor {
  protected:

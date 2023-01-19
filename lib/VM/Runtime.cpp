@@ -1302,7 +1302,7 @@ ExecutionStatus Runtime::raiseTypeErrorForValue(
 
 ExecutionStatus Runtime::raiseError(const TwineChar16 &msg) {
   return raisePlaceholder(
-      this, Handle<JSObject>::vmcast(&ErrorPrototype), msg);
+      *this, Handle<JSObject>::vmcast(&ErrorPrototype), msg);
 }
 
 ExecutionStatus Runtime::raiseTypeError(const TwineChar16 &msg) {

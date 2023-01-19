@@ -354,6 +354,20 @@ StringView StringPrimitive::createStringViewMustBeFlat(
   return StringView(self);
 }
 
+std::string StringPrimitive::toString(
+    Runtime &runtime,
+    Handle<StringPrimitive> self) {
+  auto view = StringPrimitive::createStringView(runtime, self);
+  if (view.isASCII()) {
+    return {view.begin(), view.end() };
+  } else {
+    SmallU16String<4> allocator;
+    std::string result;
+    convertUTF16ToUTF8WithReplacements(result, view.getUTF16Ref(allocator));
+    return result;
+  }
+}
+
 #ifdef HERMES_MEMORY_INSTRUMENTATION
 std::string StringPrimitive::_snapshotNameImpl(GCCell *cell, GC &gc) {
   auto *const self = vmcast<StringPrimitive>(cell);

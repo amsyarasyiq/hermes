@@ -31,7 +31,7 @@ android/intltest/java/com/facebook/hermes/test/assets/**
 
 # Aliucord
 .idea
-cmake-build-debug
+/cmake-build*/
 
 # VS Code and Visual Studio
 .vs

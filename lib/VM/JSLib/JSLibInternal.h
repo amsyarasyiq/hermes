@@ -21,10 +21,6 @@
 namespace hermes {
 namespace vm {
 
-std::string toString(
-    Runtime *runtime,
-    hermes::vm::Handle<hermes::vm::StringPrimitive> handle);
-
 /// This function declares a new system constructor (the likes of 'Object' and
 /// 'Array') with a specified object to be used as the 'prototype' property.
 /// - First, it creates a new NativeFunction object for the constructor, with
@@ -290,11 +286,11 @@ Handle<JSObject> createHermesInternalObject(
     const JSLibFlags &jsLibFlags);
 
 Handle<JSObject> createAliuHermesObject(
-    Runtime *runtime,
+    Runtime &runtime,
     const JSLibFlags &jsLibFlags);
 
 Handle<JSObject> createAliuFSObject(
-    Runtime *runtime,
+    Runtime &runtime,
     const JSLibFlags &jsLibFlags);
 
 #ifdef HERMES_ENABLE_DEBUGGER
@@ -425,7 +421,7 @@ Handle<JSObject> createGeneratorFunctionConstructor(Runtime &runtime);
 /// Create the AsyncFunction constructor and populate methods.
 Handle<JSObject> createAsyncFunctionConstructor(Runtime &runtime);
 
-Handle<JSObject> createZipFileConstructor(Runtime *runtime);
+Handle<JSObject> createZipFileConstructor(Runtime &runtime);
 
 /// Create the IteratorPrototype.
 void populateIteratorPrototype(Runtime &runtime);
