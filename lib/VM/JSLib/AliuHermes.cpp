@@ -7,9 +7,7 @@
 #include "hermes/VM/JSArrayBuffer.h"
 
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <memory>
 #include <system_error>
 #include <cstring>
@@ -21,10 +19,10 @@ namespace vm {
 
 // AliuHermes.getBytecode(function)
 CallResult<HermesValue>
-hermesInternalGetBytecode(void *, Runtime *runtime, NativeArgs args) {
+hermesInternalGetBytecode(void *, Runtime &runtime, NativeArgs args) {
   auto func = args.dyncastArg<Callable>(0);
   if (!func) {
-    return runtime->raiseTypeError(
+    return runtime.raiseTypeError(
         "Can't call HermesInternal.getBytecode() on non-callable");
   }
 
@@ -40,7 +38,7 @@ hermesInternalGetBytecode(void *, Runtime *runtime, NativeArgs args) {
     // Convert the name to string, unless it is undefined.
     if (!(*propRes)->isUndefined()) {
       auto strRes =
-          toString_RJS(runtime, runtime->makeHandle(std::move(*propRes)));
+          toString_RJS(runtime, runtime.makeHandle(std::move(*propRes)));
       if (LLVM_UNLIKELY(strRes == ExecutionStatus::EXCEPTION)) {
         return ExecutionStatus::EXCEPTION;
       }
@@ -96,10 +94,10 @@ hermesInternalGetBytecode(void *, Runtime *runtime, NativeArgs args) {
     strBuf.append(") {\n");
 
     if (auto jsFunc = dyn_vmcast<JSFunction>(*func)) {
-      auto funcId = jsFunc->getCodeBlock()->getFunctionID();
+      auto funcId = jsFunc->getCodeBlock(runtime)->getFunctionID();
 
       hbc::BytecodeDisassembler disassembler(
-          jsFunc->getRuntimeModule()->getBytecodeSharedPtr());
+          jsFunc->getRuntimeModule(runtime)->getBytecodeSharedPtr());
       hbc::DisassemblyOptions options = hbc::DisassemblyOptions::IncludeSource |
           hbc::DisassemblyOptions::IncludeFunctionIds |
           hbc::DisassemblyOptions::Pretty;
@@ -134,22 +132,22 @@ class SmartBuffer : public Buffer {
 
 // AliuHermes.run(path: string, buffer?: ArrayBuffer)
 CallResult<HermesValue>
-hermesInternalRun(void *, Runtime *runtime, NativeArgs args) {
+hermesInternalRun(void *, Runtime &runtime, NativeArgs args) {
   auto pathHandle = args.dyncastArg<StringPrimitive>(0);
   if (!pathHandle) {
-    return runtime->raiseTypeError("Path has to be a string");
+    return runtime.raiseTypeError("Path has to be a string");
   }
 
-  auto path = toString(runtime, pathHandle);
+  auto path = pathHandle->toString(runtime, pathHandle);;
 
   std::unique_ptr<Buffer> buffer;
 
   if (auto arrayBuffer = args.dyncastArg<JSArrayBuffer>(1)) {
-    buffer = std::make_unique<Buffer>(arrayBuffer->getDataBlock(), arrayBuffer->size());
+    buffer = std::make_unique<Buffer>(arrayBuffer->getDataBlock(runtime), arrayBuffer->size());
   } else if (args.getArg(1).isUndefined()) {
     auto f = fopen(path.c_str(), "rb");
     if (!f) {
-      return runtime->raiseError(strerror(errno));
+      return runtime.raiseError(strerror(errno));
     }
 
     fseek(f, 0, SEEK_END);
@@ -160,29 +158,29 @@ hermesInternalRun(void *, Runtime *runtime, NativeArgs args) {
     if (fread(buf, sizeof(uint8_t), size, f) != size) {
       fclose(f);
       delete[] buf;
-      return runtime->raiseError(strerror(errno));
+      return runtime.raiseError(strerror(errno));
     }
 
     fclose(f);
     buffer = std::make_unique<SmartBuffer>(buf, size);
   } else {
-    return runtime->raiseTypeError("Buffer must be an ArrayBuffer");
+    return runtime.raiseTypeError("Buffer must be an ArrayBuffer");
   }
 
   auto bytecode_err =
       hbc::BCProviderFromBuffer::createBCProviderFromBuffer(std::move(buffer));
   if (!bytecode_err.first) {
-    return runtime->raiseSyntaxError(TwineChar16(bytecode_err.second));
+    return runtime.raiseSyntaxError(TwineChar16(bytecode_err.second));
   }
 
   auto bytecode = std::move(bytecode_err.first);
 
-  return runtime->runBytecode(
+  return runtime.runBytecode(
       std::move(bytecode),
       RuntimeModuleFlags{},
       path,
       Runtime::makeNullHandle<Environment>(),
-      runtime->getGlobal());
+      runtime.getGlobal());
 }
 
 using namespace hermes::hbc;
@@ -192,6 +190,17 @@ class StringVisitor : public BytecodeVisitor {
  private:
   inst::OpCode opcode_;
   uint32_t i_ = 0;
+
+  /// Check if the zero based \p operandIndex in instruction \p opCode is a
+  /// string table ID.
+  static bool isOperandStringID(inst::OpCode opCode, unsigned operandIndex) {
+    #define OPERAND_STRING_ID(name, operandNumber)                     \
+      if (opCode == inst::OpCode::name && operandIndex == operandNumber - 1) \
+        return true;
+    #include "hermes/BCGen/HBC/BytecodeList.def"
+
+    return false;
+  }
 
  protected:
   void preVisitInstruction(OpCode opcode, const uint8_t *ip, int length)
@@ -218,7 +227,7 @@ class StringVisitor : public BytecodeVisitor {
 
     CallResult<HermesValue> strResult = makeStr(storage, entry);
 
-    auto str = runtime_->makeHandle<StringPrimitive>(*strResult);
+    auto str = runtime_.makeHandle<StringPrimitive>(*strResult);
 
     JSArray::setElementAt(array_, runtime_, i_, str);
     i_++;
@@ -251,29 +260,34 @@ class StringVisitor : public BytecodeVisitor {
   }
 
   void afterStart() override {
-    JSArray::setLengthProperty(array_, runtime_, i_);
+    if (LLVM_UNLIKELY(
+            JSArray::setLengthProperty(array_, runtime_, i_) ==
+            ExecutionStatus::EXCEPTION)) {
+      (void) runtime_.raiseError(static_cast<const llvh::StringRef>(
+          "Failed to set array length in StringVisitor: " + std::string(strerror(errno))));
+    }
   }
 
  public:
   hermes::vm::Handle<hermes::vm::JSArray> array_;
-  Runtime *runtime_;
+  Runtime &runtime_;
   StringVisitor(
       std::shared_ptr<hbc::BCProvider> bcProvider,
       hermes::vm::Handle<hermes::vm::JSArray> array,
-      Runtime *runtime)
+      Runtime &runtime)
       : BytecodeVisitor(std::move(bcProvider)), array_(std::move(array)), runtime_(runtime) {}
 };
 
 // AliuHermes.findStrings(function): string[]
 CallResult<HermesValue>
-hermesInternalFindStrings(void *, Runtime *runtime, NativeArgs args) {
+hermesInternalFindStrings(void *, Runtime &runtime, NativeArgs args) {
   auto func = args.dyncastArg<JSFunction>(0);
   if (!func) {
-    return runtime->raiseTypeError(
+    return runtime.raiseTypeError(
         "Can't call HermesInternal.findStrings() on non-function");
   }
 
-  auto funcId = func->getCodeBlock()->getFunctionID();
+  auto funcId = func->getCodeBlock(runtime)->getFunctionID();
 
   auto arrayResult = JSArray::create(runtime, 0, 0);
   if (LLVM_UNLIKELY(arrayResult == ExecutionStatus::EXCEPTION)) {
@@ -283,15 +297,15 @@ hermesInternalFindStrings(void *, Runtime *runtime, NativeArgs args) {
   auto array = *arrayResult;
 
   StringVisitor visitor(
-      func->getRuntimeModule()->getBytecodeSharedPtr(), array, runtime);
+      func->getRuntimeModule(runtime)->getBytecodeSharedPtr(), array, runtime);
   visitor.visitInstructionsInFunction(funcId);
 
   return visitor.array_.getHermesValue();
 }
 
-void allowExtensions(Handle<JSObject> selfHandle, Runtime *runtime) {
+void allowExtensions(Handle<JSObject> selfHandle, Runtime &runtime) {
   if (LLVM_UNLIKELY(selfHandle->isProxyObject())) {
-    auto target = runtime->makeHandle(detail::slots(*selfHandle).target);
+    auto target = runtime.makeHandle(detail::slots(*selfHandle).target);
     allowExtensions(target, runtime);
     return;
   }
@@ -302,18 +316,18 @@ void allowExtensions(Handle<JSObject> selfHandle, Runtime *runtime) {
 // reversed HiddenClass::makeAllReadOnly
 Handle<HiddenClass> makeAllWriteable(
     Handle<HiddenClass> selfHandle,
-    Runtime *runtime) {
+    Runtime &runtime) {
   if (!selfHandle->propertyMap_)
     HiddenClass::initializeMissingPropertyMap(selfHandle, runtime);
 
-  auto mapHandle = runtime->makeHandle(selfHandle->propertyMap_);
+  auto mapHandle = runtime.makeHandle(selfHandle->propertyMap_);
 
   MutableHandle<HiddenClass> curHandle{runtime, *selfHandle};
 
   DictPropertyMap::forEachProperty(
       mapHandle,
       runtime,
-      [runtime, &curHandle](SymbolID id, NamedPropertyDescriptor desc) {
+      [&runtime, &curHandle](SymbolID id, NamedPropertyDescriptor desc) {
         PropertyFlags newFlags = desc.flags;
         if (!newFlags.accessor) {
           newFlags.writable = 1;
@@ -342,7 +356,7 @@ Handle<HiddenClass> makeAllWriteable(
 
 // AliuHermes.unfreeze<T>(T): T
 CallResult<HermesValue>
-hermesInternalUnfreeze(void *, Runtime *runtime, NativeArgs args) {
+hermesInternalUnfreeze(void *, Runtime &runtime, NativeArgs args) {
   auto objHandle = args.dyncastArg<JSObject>(0);
   if (!objHandle) {
     return args.getArg(0);
@@ -350,8 +364,8 @@ hermesInternalUnfreeze(void *, Runtime *runtime, NativeArgs args) {
 
   allowExtensions(objHandle, runtime);
 
-  auto newClazz = makeAllWriteable(runtime->makeHandle(objHandle->clazz_), runtime);
-  objHandle->clazz_.setNonNull(runtime, *newClazz, &runtime->getHeap());
+  auto newClazz = makeAllWriteable(runtime.makeHandle(objHandle->clazz_), runtime);
+  objHandle->clazz_.setNonNull(runtime, *newClazz, runtime.getHeap());
 
   objHandle->flags_.frozen = false;
   objHandle->flags_.sealed = false;
@@ -360,10 +374,10 @@ hermesInternalUnfreeze(void *, Runtime *runtime, NativeArgs args) {
 }
 
 Handle<JSObject> createAliuHermesObject(
-    Runtime *runtime,
+    Runtime &runtime,
     const JSLibFlags &flags) {
   namespace P = Predefined;
-  Handle<JSObject> intern = runtime->makeHandle(JSObject::create(runtime));
+  Handle<JSObject> intern = runtime.makeHandle(JSObject::create(runtime));
   GCScope gcScope{runtime};
 
   DefinePropertyFlags constantDPF =

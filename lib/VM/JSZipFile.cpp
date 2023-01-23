@@ -22,17 +22,17 @@ const ObjectVTable JSZipFile::vt{
 
 void ZipFileBuildMeta(const GCCell *cell, Metadata::Builder &mb) {
   mb.addJSObjectOverlapSlots(JSObject::numOverlapSlots<JSZipFile>());
-  ObjectBuildMeta(cell, mb);
-  mb.setVTable(&JSZipFile::vt.base);
+  JSObjectBuildMeta(cell, mb);
+  mb.setVTable(&JSZipFile::vt);
 }
 
 PseudoHandle<JSZipFile>
-JSZipFile::create(Runtime *runtime, zip_t *zip, Handle<JSObject> parentHandle) {
-  auto *cell = runtime->makeAFixed<JSZipFile>(
+JSZipFile::create(Runtime &runtime, zip_t *zip, Handle<JSObject> parentHandle) {
+  auto *cell = runtime.makeAFixed<JSZipFile>(
       runtime,
       zip,
       parentHandle,
-      runtime->getHiddenClassForPrototype(
+      runtime.getHiddenClassForPrototype(
           *parentHandle, numOverlapSlots<JSZipFile>()));
   return JSObjectInit::initToPseudoHandle(runtime, cell);
 }

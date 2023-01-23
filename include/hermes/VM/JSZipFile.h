@@ -19,10 +19,10 @@ class JSZipFile final : public JSObject {
   }
 
   static PseudoHandle<JSZipFile>
-  create(Runtime *runtime, zip_t *zip, Handle<JSObject> prototype);
+  create(Runtime &runtime, zip_t *zip, Handle<JSObject> prototype);
 
   static PseudoHandle<JSZipFile> create(
-      Runtime *runtime,
+      Runtime &runtime,
       Handle<JSObject> prototype) {
     return create(runtime, nullptr, prototype);
   }
@@ -36,11 +36,11 @@ class JSZipFile final : public JSObject {
   }
 
   JSZipFile(
-      Runtime *runtime,
+      Runtime &runtime,
       zip_t *zip,
       Handle<JSObject> parent,
       Handle<HiddenClass> clazz)
-      : JSObject(runtime, &vt.base, *parent, *clazz), zip_{zip} {}
+      : JSObject(runtime, *parent, *clazz), zip_{zip} {}
 
  private:
   zip_t *zip_;
