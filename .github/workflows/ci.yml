@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build-linux-compiler:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,14 +36,11 @@ jobs:
           cmake -S . -B build -G Ninja
           cmake --build ./build --config Release --target hermesc
 
-      - name: Build hermes for android
-        run: |
-          cd android
-          HERMES_WS_DIR=.. ./gradlew :cppruntime:assembleRelease :hermes:assembleIntlRelease
-
       - uses: actions/upload-artifact@v3
         with:
-          name: android
+          name: linux
           path: |
-            build_android/outputs/hermes-cppruntime-release.aar
-            build_android/outputs/hermes-release.aar
+            build/bin/hermes
+            build/bin/hermesc
+            build/bin/hdb
+            build/bin/hbcdump
