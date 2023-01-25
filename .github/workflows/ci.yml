@@ -34,13 +34,13 @@ jobs:
       - name: Build compiler
         run: |
           cmake -S . -B build -G Ninja
-          cmake --build ./build --config Release --target hermesc
+          cmake --build ./build --config Release --target hermes hermesc hdb hbcdump
 
       - uses: actions/upload-artifact@v3
         with:
           name: linux
-          path: |
-            build/bin/hermes
-            build/bin/hermesc
-            build/bin/hdb
+          path: | 
+            build/bin/hermes 
+            build/bin/hermesc 
+            build/bin/hdb 
             build/bin/hbcdump
