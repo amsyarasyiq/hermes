@@ -1,0 +1,133 @@
+name: Compile Hermesc Package
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      release:
+        type: boolean
+        description: Publish release to NPM
+        default: false
+      version:
+        type: string
+        description: Package version
+        required: false
+
+jobs:
+  build-windows:
+    runs-on: "windows-2019"
+
+    steps:
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: windows
+      - uses: actions/checkout@v3
+      - name: Compile Hermesc for Windows
+        run: |
+          choco install ninja
+          cmake -S . -B build -G 'Visual Studio 16 2019' -DCMAKE_BUILD_TYPE=Release
+          cmake --build ./build --config Release --target hermesc
+          Copy-Item -Path "c:\windows\system32\msvcp140.dll" -Destination ".\build\bin\Release"
+          Copy-Item -Path "c:\windows\system32\vcruntime140.dll" -Destination ".\build\bin\Release"
+          Copy-Item -Path "c:\windows\system32\vcruntime140_1.dll" -Destination ".\build\bin\Release"
+      - uses: actions/upload-artifact@v3
+        name: Upload Windows Binaries
+        with:
+          name: hermesc-windows
+          path: |
+            build/bin/Release/hermesc.exe
+            build/bin/Release/vcruntime140_1.dll
+            build/bin/Release/vcruntime140.dll
+            build/bin/Release/msvcp140.dll
+
+  build-linux:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: linux
+      - uses: actions/checkout@v3
+      - name: Compile Hermesc for Linux
+        run: |
+          sudo apt update
+          sudo apt install cmake git ninja-build libicu-dev python2 zip libreadline-dev
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build ./build --config Release --target hermesc
+      - uses: actions/upload-artifact@v3
+        name: Upload Linux Binaries
+        with:
+          name: hermesc-linux
+          path: build/bin/hermesc
+  
+  build-mac:
+    runs-on: "macos-latest"
+
+    steps:
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: macos
+      - uses: actions/checkout@v3
+      - name: Compile Hermesc for MacOS
+        run: |  
+          brew install cmake git ninja
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build ./build --config Release --target hermesc
+      - uses: actions/upload-artifact@v3
+        name: Upload MacOS Binaries
+        with:
+          name: hermesc-mac
+          path: build/bin/hermesc
+          
+  package:
+    runs-on: "ubuntu-latest"
+    needs: [build-windows, build-linux, build-mac]
+
+    steps:
+      - uses: actions/checkout@v3
+        
+      - uses: actions/download-artifact@v3
+        with:
+          name: hermesc-linux
+          path: ./npm/hermesc/linux64-bin
+          
+      - uses: actions/download-artifact@v3
+        with:
+          name: hermesc-mac
+          path: ./npm/hermesc/osx-bin
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: hermesc-windows
+          path: ./npm/hermesc/win64-bin
+      
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Make NPM Tarball
+        run: |
+          cd npm/hermesc
+          npm pkg set version=${{ inputs.version || github.ref_name }}
+          npm pack
+
+      - uses: actions/upload-artifact@v3
+        name: Upload Hermesc Tarball
+        with:
+          name: hermesc-tarball
+          path: ./npm/hermesc/*.tgz
+
+      - name: NPM Publish
+        if: ${{ inputs.release == true }}
+        run: |
+          cd npm/hermesc
+          npm pkg set version=${{ inputs.version || github.ref_name }}
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
