@@ -114,6 +114,7 @@ jobs:
       - name: Make NPM Tarball
         run: |
           cd npm/hermesc
+          chmod +rx ./**/hermesc
           npm pkg set version=${{ inputs.version || github.ref_name }}
           npm pack
 
