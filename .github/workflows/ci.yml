@@ -6,11 +6,6 @@ concurrency:
   
 on:
   push:
-      branches:
-        - aliu
-        - 0.11.0-aliucord
-        - 0.12.0-aliucord
-
   pull_request:
   workflow_dispatch:
 
@@ -34,7 +29,12 @@ jobs:
       - name: Build compiler
         run: |
           cmake -S . -B build -G Ninja
-          cmake --build ./build --config Release --target hermes hermesc hdb hbcdump
+          cmake --build ./build --config Release --target hermesc
+
+      - name: Build hermes for android
+        run: |
+          cd android
+          HERMES_WS_DIR=.. ./gradlew :cppruntime:assembleRelease :hermes:assembleIntlRelease
 
       - uses: actions/upload-artifact@v3
         with:
