@@ -30,6 +30,12 @@
 #include <type_traits>
 #include <utility>
 
+#pragma GCC diagnostic push
+
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 namespace llvh {
 
 namespace detail {
@@ -132,6 +138,8 @@ public:
         }
       }
       assert(NumEntries == 0 && "Node count imbalance!");
+      // Suppress -Wunused-but-set-variable warning with new compilers.
+      (void)NumEntries;
     }
     setNumEntries(0);
     setNumTombstones(0);
@@ -1220,5 +1228,6 @@ inline size_t capacity_in_bytes(const DenseMap<KeyT, ValueT, KeyInfoT> &X) {
 }
 
 } // end namespace llvh
+#pragma GCC diagnostic pop
 
 #endif // LLVM_ADT_DENSEMAP_H

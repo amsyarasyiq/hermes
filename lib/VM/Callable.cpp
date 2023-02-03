@@ -27,7 +27,11 @@
 #include "hermes/VM/JSZipFile.h"
 
 #include "llvh/ADT/ArrayRef.h"
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 namespace hermes {
 namespace vm {
 
@@ -500,11 +504,23 @@ CallResult<HermesValue> BoundFunction::create(
     ConstArgIterator argsWithThis) {
   unsigned argCount = argCountWithThis > 0 ? argCountWithThis - 1 : 0;
 
+  // Copy the arguments. If we don't have any, we must at least initialize
+  // 'this' to 'undefined'.
   auto arrRes = ArrayStorage::create(runtime, argCount + 1);
   if (LLVM_UNLIKELY(arrRes == ExecutionStatus::EXCEPTION)) {
     return ExecutionStatus::EXCEPTION;
   }
-  auto argStorageHandle = runtime.makeHandle<ArrayStorage>(*arrRes);
+  auto arrHandle = runtime.makeMutableHandle(vmcast<ArrayStorage>(*arrRes));
+
+  if (argCountWithThis) {
+    for (unsigned i = 0; i != argCountWithThis; ++i) {
+      ArrayStorage::push_back(arrHandle, runtime, Handle<>(&argsWithThis[i]));
+    }
+  } else {
+    // Don't need to worry about resizing since it was created with a capacity
+    // of at least 1.
+    ArrayStorage::push_back(arrHandle, runtime, Runtime::getUndefinedValue());
+  }
 
   auto *cell = runtime.makeAFixed<BoundFunction>(
       runtime,
@@ -512,28 +528,8 @@ CallResult<HermesValue> BoundFunction::create(
       runtime.getHiddenClassForPrototype(
           runtime.functionPrototypeRawPtr, numOverlapSlots<BoundFunction>()),
       target,
-      argStorageHandle);
+      arrHandle);
   auto selfHandle = JSObjectInit::initToHandle(runtime, cell);
-
-  // Copy the arguments. If we don't have any, we must at least initialize
-  // 'this' to 'undefined'.
-  MutableHandle<ArrayStorage> handle(
-      runtime, selfHandle->argStorage_.get(runtime));
-
-  // In case the storage was trimmed, make sure it has enough capacity.
-  ArrayStorage::ensureCapacity(handle, runtime, argCount + 1);
-
-  if (argCountWithThis) {
-    for (unsigned i = 0; i != argCountWithThis; ++i) {
-      ArrayStorage::push_back(handle, runtime, Handle<>(&argsWithThis[i]));
-    }
-  } else {
-    // Don't need to worry about resizing since it was created with a capacity
-    // of at least 1.
-    ArrayStorage::push_back(handle, runtime, Runtime::getUndefinedValue());
-  }
-  // Update the storage pointer in case push_back() needed to reallocate.
-  selfHandle->argStorage_.set(runtime, *handle, runtime.getHeap());
 
   if (target->isLazy()) {
     // If the target is lazy we can make the bound function lazy.
@@ -1400,7 +1396,11 @@ CallResult<PseudoHandle<>> GeneratorInnerFunction::callInnerFunction(
   // Note that this will do nothing after the very first time a lazy function
   // is called, so we only resize before we save any registers at all.
   if (LLVM_UNLIKELY(selfHandle->getCodeBlock(runtime)->isLazy())) {
-    selfHandle->getCodeBlock(runtime)->lazyCompile(runtime);
+    if (LLVM_UNLIKELY(
+            selfHandle->getCodeBlock(runtime)->lazyCompile(runtime) ==
+            ExecutionStatus::EXCEPTION)) {
+      return ExecutionStatus::EXCEPTION;
+    }
     if (LLVM_UNLIKELY(
             ArrayStorage::resize(
                 ctx,

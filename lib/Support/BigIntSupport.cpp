@@ -20,6 +20,12 @@
 
 namespace hermes {
 namespace bigint {
+// The maximum BigInt size in bits. This is defined here and not the header file
+// to prevent more bit-related definitions in the API -- which mostly operates
+// in terms of Digits, and sometimes, bytes.
+static constexpr BigIntDigitType BigIntMaxSizeInBits =
+    BigIntMaxSizeInDigits * BigIntDigitSizeInBits;
+
 llvh::ArrayRef<uint8_t> dropExtraSignBits(llvh::ArrayRef<uint8_t> src) {
   if (src.empty()) {
     // return an empty array ref.
@@ -874,6 +880,28 @@ int compare(ImmutableBigIntRef lhs, SignedBigIntDigitType rhs) {
   return compare(lhs, makeImmutableRefFromSignedDigit(rhs));
 }
 
+bool isSingleDigitTruncationLossless(
+    ImmutableBigIntRef src,
+    bool signedTruncation) {
+  if (src.numDigits == 0) {
+    // 0n can be represented in either signed or unsigned digits.
+    return true;
+  }
+
+  if (signedTruncation) {
+    // converting src to int64_t: any single digit bigint is truncated
+    // losslessly.
+    return src.numDigits == 1;
+  }
+  // converting src to uint64_t:
+  // * any single digit bigint in the range [0, 0x8000000000000000)
+  // * any two digit bigint whose second digit is used for zero-extension is
+  //   truncated losslessly.
+  return (src.numDigits == 1 &&
+          src.digits[0] <= std::numeric_limits<int64_t>::max()) ||
+      (src.numDigits == 2 && src.digits[1] == 0);
+}
+
 namespace {
 /// Helper adapter for calling getSignExtValue with *BigIntRefs.
 template <typename AnyBigIntRef>
@@ -908,21 +936,31 @@ OperationStatus initNonCanonicalWithReadOnlyBigInt(
 }
 } // namespace
 
-uint32_t asUintNResultSize(uint64_t n, ImmutableBigIntRef src) {
+OperationStatus
+asUintNResultSize(uint64_t n, ImmutableBigIntRef src, uint32_t &resultSize) {
   static_assert(
       BigIntMaxSizeInDigits < std::numeric_limits<uint32_t>::max(),
       "uint32_t is not large enough to represent max bigint digits.");
 
-  const uint64_t numDigitsN = numDigitsForSizeInBits(n + 1);
+  const uint64_t numBitsSrc = src.numDigits * BigIntDigitSizeInBits;
 
+  uint64_t numBitsResult;
   if (!isNegative(src)) {
-    // for src >= 0, the result is limited to the same number of digits in src.
-    return std::min<uint64_t>(numDigitsN, src.numDigits);
+    // for src >= 0, the result is limited to the same number of digits in src,
+    // plus an extra bit for the sign.
+    numBitsResult = std::min(n, numBitsSrc) + 1;
+  } else {
+    // for src < 0, the result is potentially unlimited as negative bigints have
+    // infinite size.
+    numBitsResult = n + 1;
   }
 
-  // for src < 0, the result is only limited by BigInt's maximum size due to
-  // negative numbers' infinite size, they have infinite non-zero digits.
-  return numDigitsN;
+  if (numBitsResult > BigIntMaxSizeInBits) {
+    return OperationStatus::TOO_MANY_DIGITS;
+  }
+
+  resultSize = numDigitsForSizeInBits(numBitsResult);
+  return OperationStatus::RETURNED;
 }
 
 uint32_t asIntNResultSize(uint64_t n, ImmutableBigIntRef src) {
@@ -980,7 +1018,7 @@ static OperationStatus bigintAsImpl(
 
   // figure out the k-th digit -- i.e., the digit where bit n lives. Also figure
   // out which bit in k is the last that should be copied to the output.
-  const uint32_t k = (n - 1) / BigIntDigitSizeInBits;
+  const uint64_t k = (n - 1) / BigIntDigitSizeInBits;
   const uint32_t bitWithinK = (n - 1) % BigIntDigitSizeInBits;
 
   // sanity-check: k (zero based) should be less than dst.numDigits for
@@ -993,14 +1031,17 @@ static OperationStatus bigintAsImpl(
       "result is missing digits");
 
   // only copy the first k digits from src into dst, unless k is more digits --
-  // then simply copy all of src.
-  const uint32_t numDigitsToCopy = std::min(k + 1, src.numDigits);
+  // then simply copy all of src. The uint64_t to uint32_t truncation is safe
+  // because the result will either be src.numDigits (which is an uint32_t), or
+  // k + 1 bound by src.numDigits. Note that the truncation is only safe after
+  // std::min returns.
+  const uint32_t numDigitsToCopy = std::min<uint64_t>(k + 1, src.numDigits);
 
   // only initialize the first k digits in dst, unless k is more digits -- then
   // fully initialize dst.
   // N.B.: This can't be const because it is used to initialize a
   // MutableBigIntRef.
-  uint32_t numDigitsDst = std::min(k + 1, dst.numDigits);
+  uint32_t numDigitsDst = std::min<uint64_t>(k + 1, dst.numDigits);
   MutableBigIntRef limitedDst{dst.digits, numDigitsDst};
 
   // copy digits from src to dst, sign-extending src if needed.
@@ -1068,7 +1109,11 @@ static OperationStatus bigintAsImpl(
 
 OperationStatus
 asUintN(MutableBigIntRef dst, uint64_t n, ImmutableBigIntRef src) {
-  const uint32_t numDigits = asUintNResultSize(n, src);
+  uint32_t numDigits;
+  OperationStatus s = asUintNResultSize(n, src, numDigits);
+  if (LLVM_UNLIKELY(s != OperationStatus::RETURNED)) {
+    return s;
+  }
   return bigintAsImpl(dst, numDigits, n, src, BigIntAs::UintN);
 }
 
@@ -1825,11 +1870,6 @@ OperationStatus exponentiateSlowPath(
 }
 } // namespace
 
-// The maximum BigInt size in bits. This is defined here and not the header file
-// to prevent more bit-related definitions in the API -- which mostly operates
-// in terms of Digits, and sometimes, bytes.
-static constexpr BigIntDigitType BigIntMaxSizeInBits =
-    BigIntMaxSizeInDigits * BigIntDigitSizeInBits;
 static_assert(
     static_cast<SignedBigIntDigitType>(BigIntMaxSizeInBits) > 0,
     "BigIntMaxSizeInBits overflow");

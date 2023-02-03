@@ -32,7 +32,7 @@ using llvh::isa;
 
 namespace hermes {
 
-std::string IRPrinter::escapeStr(StringRef name) {
+std::string IRPrinter::escapeStr(llvh::StringRef name) {
   std::string s = name.str();
   std::string out;
   out += getQuoteSign();
@@ -70,7 +70,7 @@ std::string IRPrinter::escapeStr(StringRef name) {
   return out;
 }
 
-std::string IRPrinter::quoteStr(StringRef name) {
+std::string IRPrinter::quoteStr(llvh::StringRef name) {
   if (name.count(" ") || name.empty()) {
     return getQuoteSign() + name.str() + getQuoteSign();
   }
@@ -99,7 +99,7 @@ void IRPrinter::printTypeLabel(Type T) {
 
 void IRPrinter::printValueLabel(Instruction *I, Value *V, unsigned opIndex) {
   auto &ctx = I->getContext();
-  if (isa<CallBuiltinInst>(I) && opIndex == 0) {
+  if (isa<CallBuiltinInst>(I) && opIndex == CallInst::CalleeIdx) {
     os << "["
        << getBuiltinMethodName(cast<CallBuiltinInst>(I)->getBuiltinIndex())
        << "]";
@@ -152,14 +152,18 @@ void IRPrinter::printValueLabel(Instruction *I, Value *V, unsigned opIndex) {
     auto Name = P->getName();
     os << "%" << ctx.toString(Name);
   } else if (auto F = dyn_cast<Function>(V)) {
-    os << "%" << quoteStr(ctx.toString(F->getInternalName())) << "()";
-  } else if (auto VS = dyn_cast<VariableScope>(V)) {
-    os << "%" << quoteStr(ctx.toString(VS->getFunction()->getInternalName()))
-       << "()";
+    os << "%";
+    printFunctionName(F, PrintFunctionParams::No);
+  } else if (auto S = dyn_cast<ScopeDesc>(V)) {
+    os << "%S{";
+    printFunctionName(S->getFunction(), PrintFunctionParams::No);
+    printScopeRange(S, S->getFunction()->getFunctionScopeDesc());
+    os << "}";
   } else if (auto VR = dyn_cast<Variable>(V)) {
-    os << "[" << quoteStr(ctx.toString(VR->getName()));
+    os << "[";
+    printVariableName(VR);
     if (I->getParent()->getParent() != VR->getParent()->getFunction()) {
-      StringRef scopeName =
+      llvh::StringRef scopeName =
           VR->getParent()->getFunction()->getInternalNameStr();
       os << "@" << quoteStr(scopeName);
     }
@@ -172,39 +176,28 @@ void IRPrinter::printValueLabel(Instruction *I, Value *V, unsigned opIndex) {
 }
 
 void IRPrinter::printFunctionHeader(Function *F) {
-  bool first = true;
-  auto &Ctx = F->getContext();
   std::string defKindStr = F->getDefinitionKindStr(false);
 
-  os << defKindStr << " " << quoteStr(Ctx.toString(F->getInternalName()))
-     << "(";
-  for (auto P : F->getParameters()) {
-    if (!first) {
-      os << ", ";
-    }
-    os << Ctx.toString(P->getName());
-    printTypeLabel(P->getType());
-    first = false;
-  }
-  os << ")";
+  os << defKindStr << " ";
+  printFunctionName(F, PrintFunctionParams::Yes);
   printTypeLabel(F->getType());
 }
 
 void IRPrinter::printFunctionVariables(Function *F) {
-  bool first = true;
-  auto &Ctx = F->getContext();
   os << "frame = [";
-  for (auto V : F->getFunctionScope()->getVariables()) {
+  bool first = true;
+  for (auto V : F->getFunctionScopeDesc()->getVariables()) {
     if (!first) {
       os << ", ";
     }
-    os << Ctx.toString(V->getName());
+    printVariableName(V);
     printTypeLabel(V->getType());
     first = false;
   }
   os << "]";
 
   if (F->isGlobalScope()) {
+    auto &Ctx = F->getContext();
     bool first2 = true;
     for (auto *GP : F->getParent()->getGlobalProperties()) {
       if (!GP->isDeclared())
@@ -245,18 +238,31 @@ void IRPrinter::printInstruction(Instruction *I) {
   }
 
   for (int i = 0, e = I->getNumOperands(); i < e; i++) {
+    Value *O = I->getOperand(i);
     os << (first ? " " : ", ");
-    printValueLabel(I, I->getOperand(i), i);
+    printValueLabel(I, O, i);
     first = false;
   }
 
   auto codeGenOpts = I->getContext().getCodeGenerationSettings();
+  const char *prefix = " // ";
+  if (codeGenOpts.dumpSourceLevelScope) {
+    if (auto *originalScope =
+            llvh::dyn_cast<ScopeDesc>(I->getSourceLevelScope())) {
+      os << prefix << "scope: ";
+      printFunctionName(originalScope->getFunction(), PrintFunctionParams::No);
+      printScopeRange(
+          originalScope, originalScope->getFunction()->getFunctionScopeDesc());
+      prefix = ", ";
+    }
+  }
+
   // Print the use list if there is any user for the instruction.
   if (!codeGenOpts.dumpUseList || I->getUsers().empty())
     return;
 
   llvh::DenseSet<Instruction *> Visited;
-  os << " // users:";
+  os << prefix << "users:";
   for (auto &U : I->getUsers()) {
     auto *II = cast<Instruction>(U);
     assert(II && "Expecting user to be an Instruction");
@@ -287,10 +293,67 @@ void IRPrinter::printSourceLocation(SMRange rng) {
      << ":" << end.col << ")";
 }
 
+void IRPrinter::printScope(ScopeDesc *S) {
+  os << "#" << ScopeNamer.getNumber(S);
+}
+
+void IRPrinter::printScopeRange(ScopeDesc *Start, ScopeDesc *End) {
+  if (Start != End) {
+    printScopeRange(Start->getParent(), End);
+    printScope(Start);
+  }
+}
+
+void IRPrinter::printScopeChain(ScopeDesc *S) {
+  if (S && S->getParent()) {
+    printScope(S->getParent());
+  }
+  printScope(S);
+}
+
+void IRPrinter::printFunctionName(
+    Function *F,
+    PrintFunctionParams printFunctionParams) {
+  auto &ctx = F->getContext();
+  os << quoteStr(ctx.toString(F->getInternalName()));
+  printScopeChain(F->getFunctionScopeDesc()->getParent());
+  os << "(";
+  if (printFunctionParams != PrintFunctionParams::No) {
+    bool first = true;
+    for (auto P : F->getParameters()) {
+      if (!first) {
+        os << ", ";
+      }
+      os << ctx.toString(P->getName());
+      printTypeLabel(P->getType());
+      first = false;
+    }
+  }
+  os << ")";
+  printScope(F->getFunctionScopeDesc());
+}
+
+void IRPrinter::printVariableName(Variable *V) {
+  ScopeDesc *VS = V->getParent();
+  auto &ctx = VS->getFunction()->getContext();
+  os << ctx.toString(V->getName());
+  printScope(VS);
+}
+
 void IRPrinter::visitModule(const Module &M) {
+  ScopeNamer.clear();
+  visitScope(*M.getInitialScope());
+
   // Use IRVisitor dispatch to visit each individual function.
   for (auto &F : M)
     visit(F);
+}
+
+void IRPrinter::visitScope(const ScopeDesc &S) {
+  ScopeNamer.getNumber(const_cast<ScopeDesc *>(&S));
+  for (ScopeDesc *inner : S.getInnerScopes()) {
+    visitScope(*inner);
+  }
 }
 
 void IRPrinter::visitFunction(const Function &F) {
@@ -300,8 +363,9 @@ void IRPrinter::visitFunction(const Function &F) {
   InstNamer.clear();
   // Number all instructions sequentially.
   for (auto &BB : *UF)
-    for (auto &I : BB)
+    for (auto &I : BB) {
       InstNamer.getNumber(&I);
+    }
 
   printFunctionHeader(UF);
   os << "\n";
@@ -333,8 +397,9 @@ void IRPrinter::visitBasicBlock(const BasicBlock &BB) {
   Indent += 2;
 
   // Use IRVisitor dispatch to visit the instructions.
-  for (auto &I : BB)
+  for (auto &I : BB) {
     visit(I);
+  }
 
   Indent -= 2;
 }
@@ -363,7 +428,10 @@ struct DottyPrinter : public IRVisitor<DottyPrinter, void> {
   llvh::SmallVector<std::pair<std::string, std::string>, 4> Edges;
   IRPrinter Printer;
 
-  explicit DottyPrinter(Context &ctx, llvh::raw_ostream &ost, StringRef Title)
+  explicit DottyPrinter(
+      Context &ctx,
+      llvh::raw_ostream &ost,
+      llvh::StringRef Title)
       : os(ost), Printer(ctx, ost, /* escape output */ true) {
     os << " digraph g {\n graph [ rankdir = \"TD\" ];\n";
     os << "labelloc=\"t\"; ";
@@ -448,7 +516,7 @@ struct DottyPrinter : public IRVisitor<DottyPrinter, void> {
 void hermes::viewGraph(Function *F) {
 #ifndef NDEBUG
   auto &Ctx = F->getContext();
-  StringRef Name = Ctx.toString(F->getInternalName());
+  llvh::StringRef Name = Ctx.toString(F->getInternalName());
   int FD;
   // Windows can't always handle long paths, so limit the length of the name.
   std::string N = Name.str();

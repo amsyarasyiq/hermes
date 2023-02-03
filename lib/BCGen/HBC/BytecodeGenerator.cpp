@@ -33,14 +33,14 @@ uint32_t BytecodeFunctionGenerator::addBigInt(bigint::ParsedBigInt bigint) {
   return BMGen_.addBigInt(std::move(bigint));
 }
 
-uint32_t BytecodeFunctionGenerator::addRegExp(CompiledRegExp regexp) {
+uint32_t BytecodeFunctionGenerator::addRegExp(CompiledRegExp *regexp) {
   assert(
       !complete_ &&
       "Cannot modify BytecodeFunction after call to bytecodeGenerationComplete.");
-  return BMGen_.addRegExp(std::move(regexp));
+  return BMGen_.addRegExp(regexp);
 }
 
-uint32_t BytecodeFunctionGenerator::addFilename(StringRef filename) {
+uint32_t BytecodeFunctionGenerator::addFilename(llvh::StringRef filename) {
   assert(
       !complete_ &&
       "Cannot modify BytecodeFunction after call to bytecodeGenerationComplete.");
@@ -217,14 +217,16 @@ void BytecodeModuleGenerator::setFunctionGenerator(
   assert(
       functionGenerators_.find(F) == functionGenerators_.end() &&
       "Adding same function twice.");
+  assert(
+      !BFG->hasEncodingError() && "Error should have been reported already.");
   functionGenerators_[F] = std::move(BFG);
 }
 
-unsigned BytecodeModuleGenerator::getStringID(StringRef str) const {
+unsigned BytecodeModuleGenerator::getStringID(llvh::StringRef str) const {
   return stringTable_.getStringID(str);
 }
 
-unsigned BytecodeModuleGenerator::getIdentifierID(StringRef str) const {
+unsigned BytecodeModuleGenerator::getIdentifierID(llvh::StringRef str) const {
   return stringTable_.getIdentifierID(str);
 }
 
@@ -238,11 +240,11 @@ uint32_t BytecodeModuleGenerator::addBigInt(bigint::ParsedBigInt bigint) {
   return bigIntTable_.addBigInt(std::move(bigint));
 }
 
-uint32_t BytecodeModuleGenerator::addRegExp(CompiledRegExp regexp) {
-  return regExpTable_.addRegExp(std::move(regexp));
+uint32_t BytecodeModuleGenerator::addRegExp(CompiledRegExp *regexp) {
+  return regExpTable_.addRegExp(regexp);
 }
 
-uint32_t BytecodeModuleGenerator::addFilename(StringRef filename) {
+uint32_t BytecodeModuleGenerator::addFilename(llvh::StringRef filename) {
   return filenameTable_.addFilename(filename);
 }
 
@@ -323,7 +325,7 @@ std::unique_ptr<BytecodeModule> BytecodeModuleGenerator::generate() {
         F->getKind(),
         F->isStrictMode(),
         F->getExpectedParamCountIncludingThis(),
-        F->getFunctionScope()->getVariables().size(),
+        F->getFunctionScopeDesc()->getVariables().size(),
         functionNameId);
 
     if (F->isLazy()) {

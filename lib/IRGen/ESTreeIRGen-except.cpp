@@ -13,7 +13,7 @@ namespace hermes {
 namespace irgen {
 
 void ESTreeIRGen::genTryStatement(ESTree::TryStatementNode *tryStmt) {
-  LLVM_DEBUG(dbgs() << "IRGen 'try' statement\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen 'try' statement\n");
 
   // try-catch-finally statements must have been transformed by the validator
   // into two nested try statements with only "catch" or "finally" each.
@@ -112,7 +112,7 @@ CatchInst *ESTreeIRGen::prepareCatch(ESTree::NodePtr catchParam) {
       genAnonymousLabelName(catchVariableName.str());
 
   auto errorVar = Builder.createVariable(
-      curFunction()->function->getFunctionScope(),
+      curFunction()->function->getFunctionScopeDesc(),
       Variable::DeclKind::Var,
       uniquedCatchVariableName);
 
@@ -124,7 +124,7 @@ CatchInst *ESTreeIRGen::prepareCatch(ESTree::NodePtr catchParam) {
   // Alias the lexical name to the synthesized variable.
   nameTable_.insert(catchVariableName, errorVar);
 
-  emitStore(Builder, catchInst, errorVar, true);
+  emitStore(catchInst, errorVar, true);
   return catchInst;
 }
 

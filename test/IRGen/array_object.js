@@ -5,29 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheck %s --match-full-lines
+// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheckOrRegen %s --match-full-lines
 // RUN: %hermes -hermes-parser -dump-ir %s -O
-
-
-//CHECK-LABEL:function foo(param)
-//CHECK-NEXT:frame = [obj, foo, param]
-//CHECK-NEXT:%BB0:
-//CHECK-NEXT:  %0 = StoreFrameInst undefined : undefined, [obj]
-//CHECK-NEXT:  %1 = StoreFrameInst undefined : undefined, [foo]
-//CHECK-NEXT:  %2 = StoreFrameInst %param, [param]
-//CHECK-NEXT:  %3 = LoadFrameInst [param]
-//CHECK-NEXT:  %4 = AllocObjectLiteralInst "1" : string, 2 : number, "key" : string, %3
-//CHECK-NEXT:  %5 = StoreFrameInst %4 : object, [obj]
-//CHECK-NEXT:  %6 = AllocArrayInst 4 : number, 1 : number, 2 : number, 3 : number, 4 : number
-//CHECK-NEXT:  %7 = StoreFrameInst %6 : object, [foo]
-//CHECK-NEXT:  %8 = LoadFrameInst [obj]
-//CHECK-NEXT:  %9 = LoadFrameInst [foo]
-//CHECK-NEXT:  %10 = StorePropertyInst %9, %8, "field" : string
-//CHECK-NEXT:  %11 = LoadFrameInst [foo]
-//CHECK-NEXT:  %12 = LoadFrameInst [obj]
-//CHECK-NEXT:  %13 = StorePropertyInst %12, %11, 5 : number
-//CHECK-NEXT:  %14 = ReturnInst undefined : undefined
-//CHECK-NEXT:function_end
 
 function foo(param) {
   var obj = {"1" : 2, "key" : param};
@@ -38,3 +17,38 @@ function foo(param) {
 
   foo[5] = obj;
 }
+
+// Auto-generated content below. Please do not modify manually.
+
+// CHECK:function global#0()#1
+// CHECK-NEXT:frame = [], globals = [foo]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{global#0()#1}
+// CHECK-NEXT:  %1 = CreateFunctionInst %foo#0#1()#2, %0
+// CHECK-NEXT:  %2 = StorePropertyInst %1 : closure, globalObject : object, "foo" : string
+// CHECK-NEXT:  %3 = AllocStackInst $?anon_0_ret
+// CHECK-NEXT:  %4 = StoreStackInst undefined : undefined, %3
+// CHECK-NEXT:  %5 = LoadStackInst %3
+// CHECK-NEXT:  %6 = ReturnInst %5
+// CHECK-NEXT:function_end
+
+// CHECK:function foo#0#1(param)#2
+// CHECK-NEXT:frame = [param#2, obj#2, foo#2]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{foo#0#1()#2}
+// CHECK-NEXT:  %1 = StoreFrameInst %param, [param#2], %0
+// CHECK-NEXT:  %2 = StoreFrameInst undefined : undefined, [obj#2], %0
+// CHECK-NEXT:  %3 = StoreFrameInst undefined : undefined, [foo#2], %0
+// CHECK-NEXT:  %4 = LoadFrameInst [param#2], %0
+// CHECK-NEXT:  %5 = AllocObjectLiteralInst "1" : string, 2 : number, "key" : string, %4
+// CHECK-NEXT:  %6 = StoreFrameInst %5 : object, [obj#2], %0
+// CHECK-NEXT:  %7 = AllocArrayInst 4 : number, 1 : number, 2 : number, 3 : number, 4 : number
+// CHECK-NEXT:  %8 = StoreFrameInst %7 : object, [foo#2], %0
+// CHECK-NEXT:  %9 = LoadFrameInst [obj#2], %0
+// CHECK-NEXT:  %10 = LoadFrameInst [foo#2], %0
+// CHECK-NEXT:  %11 = StorePropertyInst %10, %9, "field" : string
+// CHECK-NEXT:  %12 = LoadFrameInst [foo#2], %0
+// CHECK-NEXT:  %13 = LoadFrameInst [obj#2], %0
+// CHECK-NEXT:  %14 = StorePropertyInst %13, %12, 5 : number
+// CHECK-NEXT:  %15 = ReturnInst undefined : undefined
+// CHECK-NEXT:function_end

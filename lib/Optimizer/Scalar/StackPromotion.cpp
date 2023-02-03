@@ -209,6 +209,23 @@ struct StorePoint {
   StorePoint(BasicBlock *from, BasicBlock *to) : from(from), to(to) {}
 };
 
+/// Finds and returns the CreateScopeInst that materializes \p F's body scope.
+CreateScopeInst *getFunctionBodyScopeMaterialization(Function *F) {
+  for (BasicBlock &BB : *F) {
+    for (Instruction &I : BB) {
+      if (auto *csi = llvh::dyn_cast<CreateScopeInst>(&I)) {
+        assert(
+            csi->getCreatedScopeDesc() == F->getFunctionScopeDesc() &&
+            "unexpected ScopeDesc in CreateScopeInst");
+        return csi;
+      }
+    }
+  }
+
+  assert(false && "Function is missing body scope materialization");
+  return nullptr;
+}
+
 /// Promote captured variables until they're actually needed.
 // Here's an example of how it optimizes a captured variable:
 //
@@ -231,7 +248,7 @@ bool promoteVariables(Function *F) {
 
   // Find variables that are currently not optimal.
   llvh::DenseSet<Variable *> needsOptimizing;
-  for (auto *var : F->getFunctionScope()->getVariables()) {
+  for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
     if (!hasExternalUses(var)) {
       // This variable isn't needed at all, it should be purely on the stack.
       needsOptimizing.insert(var);
@@ -255,7 +272,9 @@ bool promoteVariables(Function *F) {
   // need real variables. For uncaptured variables, this replaces all uses.
   IRBuilder builder(F);
   llvh::DenseMap<Variable *, AllocStackInst *> stackMap;
-  for (auto *var : F->getFunctionScope()->getVariables()) {
+  CreateScopeInst *csi = getFunctionBodyScopeMaterialization(F);
+
+  for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
     if (!needsOptimizing.count(var))
       continue;
     if (!var->getNumUsers())
@@ -337,7 +356,7 @@ bool promoteVariables(Function *F) {
     builder.setInsertionPoint(&*insertionPoint);
 
     // Loop over the set of common variables, but in a deterministic order.
-    for (auto *var : F->getFunctionScope()->getVariables()) {
+    for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
       if (!commons.count(var))
         continue;
       // It could have been the case that this block both initializes and
@@ -346,7 +365,7 @@ bool promoteVariables(Function *F) {
       // To avoid this case, the variable is always initialized to undefined so
       // that it's merely unnecessary, and will get optimized away.
       auto *value = builder.createLoadStackInst(stackMap[var]);
-      builder.createStoreFrameInst(value, var);
+      builder.createStoreFrameInst(value, var, csi);
       alreadyProcessed.insert(std::pair<BasicBlock *, Variable *>(&BB, var));
       changed = true;
     }
@@ -373,7 +392,7 @@ bool promoteVariables(Function *F) {
       auto &usedNext = capturedVariableUsage[next];
       StorePoint *point = nullptr;
 
-      for (auto *var : F->getFunctionScope()->getVariables()) {
+      for (auto *var : F->getFunctionScopeDesc()->getVariables()) {
         if (!needsOptimizing.count(var))
           continue;
         // We only care about transitions, i.e. variables
@@ -399,7 +418,7 @@ bool promoteVariables(Function *F) {
     splitCriticalEdge(&builder, point.from, point.to);
     for (auto *var : point.variables) {
       auto *value = builder.createLoadStackInst(stackMap[var]);
-      builder.createStoreFrameInst(value, var);
+      builder.createStoreFrameInst(value, var, csi);
       changed = true;
     }
   }
@@ -415,7 +434,7 @@ bool StackPromotion::runOnFunction(Function *F) {
       dbgs() << "Promoting variables in " << F->getInternalNameStr() << "\n");
   DominanceInfo DT(F);
 
-  for (auto *V : F->getFunctionScope()->getVariables()) {
+  for (auto *V : F->getFunctionScopeDesc()->getVariables()) {
     // Promote constant variables.
     if (Value *val = isStoreOnceVariable(V)) {
       promoteConstVariable(DT, V, F, val);
@@ -425,7 +444,7 @@ bool StackPromotion::runOnFunction(Function *F) {
 
   // Now that we've promoted some variables, remove the unused variables from
   // the list and destroy them.
-  auto &vars = F->getFunctionScope()->getVariables();
+  auto &vars = F->getFunctionScopeDesc()->getMutableVariables();
   vars.erase(
       std::remove_if(
           vars.begin(),

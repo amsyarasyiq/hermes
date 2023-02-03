@@ -5,16 +5,19 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermesc -O -dump-ir %s | %FileCheck --match-full-lines %s
+// RUN: %hermesc -O -dump-ir %s | %FileCheckOrRegen --match-full-lines %s
 
 // Ensure the stack promotion happens in global scope.
 let x = 10;
 print(x);
 
-//CHECK-LABEL:function global{{.*}}
-//CHECK-NEXT:frame = []
-//CHECK-NEXT:%BB0:
-//CHECK-NEXT:  %0 = TryLoadGlobalPropertyInst globalObject : object, "print" : string
-//CHECK-NEXT:  %1 = CallInst %0, undefined : undefined, 10 : number
-//CHECK-NEXT:  %2 = ReturnInst %1
-//CHECK-NEXT:function_end
+// Auto-generated content below. Please do not modify manually.
+
+// CHECK:function global#0()#1
+// CHECK-NEXT:frame = []
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{global#0()#1}
+// CHECK-NEXT:  %1 = TryLoadGlobalPropertyInst globalObject : object, "print" : string
+// CHECK-NEXT:  %2 = CallInst %1, undefined : undefined, 10 : number
+// CHECK-NEXT:  %3 = ReturnInst %2
+// CHECK-NEXT:function_end

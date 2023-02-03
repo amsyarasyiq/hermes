@@ -22,10 +22,18 @@ FunctionContext::FunctionContext(
     : irGen_(irGen),
       semInfo_(semInfo),
       oldContext_(irGen->functionContext_),
+      oldIRScopeDesc_(irGen->currentIRScopeDesc_),
+      oldIRScope_(irGen->currentIRScope_),
       builderSaveState_(irGen->Builder),
       function(function),
-      scope(irGen->nameTable_) {
+      scope(irGen->nameTable_),
+      anonymousIDs_(function->getContext().getStringTable()) {
   irGen->functionContext_ = this;
+  irGen->currentIRScopeDesc_ = function->getFunctionScopeDesc();
+
+  // Temporarily set the current IR scope to nullptr. IRGen should materialize
+  // currentIRScopeDesc_ before trying to access it.
+  irGen->currentIRScope_ = nullptr;
 
   // Initialize it to LiteralUndefined by default to avoid corner cases.
   this->capturedNewTarget = irGen->Builder.getLiteralUndefined();
@@ -40,14 +48,14 @@ FunctionContext::FunctionContext(
 }
 
 FunctionContext::~FunctionContext() {
+  irGen_->currentIRScope_ = oldIRScope_;
+  irGen_->currentIRScopeDesc_ = oldIRScopeDesc_;
   irGen_->functionContext_ = oldContext_;
+  irGen_->Builder.setCurrentSourceLevelScope(irGen_->currentIRScopeDesc_);
 }
 
-Identifier FunctionContext::genAnonymousLabelName(StringRef hint) {
-  llvh::SmallString<16> buf;
-  llvh::raw_svector_ostream nameBuilder{buf};
-  nameBuilder << "?anon_" << anonymousLabelCounter++ << "_" << hint;
-  return function->getContext().getIdentifier(nameBuilder.str());
+Identifier FunctionContext::genAnonymousLabelName(llvh::StringRef hint) {
+  return anonymousIDs_.next(hint);
 }
 
 //===----------------------------------------------------------------------===//
@@ -63,7 +71,7 @@ void ESTreeIRGen::genFunctionDeclaration(
 
   // Find the name of the function.
   Identifier functionName = getNameFieldFromID(func->_id);
-  LLVM_DEBUG(dbgs() << "IRGen function \"" << functionName << "\".\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen function \"" << functionName << "\".\n");
 
   auto *funcStorage = nameTable_.lookup(functionName);
   assert(
@@ -75,9 +83,9 @@ void ESTreeIRGen::genFunctionDeclaration(
                          : genES5Function(functionName, nullptr, func);
 
   // Store the newly created closure into a frame variable with the same name.
-  auto *newClosure = Builder.createCreateFunctionInst(newFunc);
+  auto *newClosure = Builder.createCreateFunctionInst(newFunc, currentIRScope_);
 
-  emitStore(Builder, newClosure, funcStorage, true);
+  emitStore(newClosure, funcStorage, true);
 }
 
 Value *ESTreeIRGen::genFunctionExpression(
@@ -90,9 +98,9 @@ Value *ESTreeIRGen::genFunctionExpression(
   }
 
   LLVM_DEBUG(
-      dbgs() << "Creating anonymous closure. "
-             << Builder.getInsertionBlock()->getParent()->getInternalName()
-             << ".\n");
+      llvh::dbgs()
+      << "Creating anonymous closure. "
+      << Builder.getInsertionBlock()->getParent()->getInternalName() << ".\n");
 
   NameTableScopeTy newScope(nameTable_);
   Variable *tempClosureVar = nullptr;
@@ -101,7 +109,7 @@ Value *ESTreeIRGen::genFunctionExpression(
   if (FE->_id) {
     auto closureName = genAnonymousLabelName("closure");
     tempClosureVar = Builder.createVariable(
-        curFunction()->function->getFunctionScope(),
+        curFunction()->function->getFunctionScopeDesc(),
         Variable::DeclKind::Var,
         closureName);
 
@@ -121,10 +129,10 @@ Value *ESTreeIRGen::genFunctionExpression(
       ? genGeneratorFunction(originalNameIden, tempClosureVar, FE)
       : genES5Function(originalNameIden, tempClosureVar, FE);
 
-  Value *closure = Builder.createCreateFunctionInst(newFunc);
+  Value *closure = Builder.createCreateFunctionInst(newFunc, currentIRScope_);
 
   if (tempClosureVar)
-    emitStore(Builder, closure, tempClosureVar, true);
+    emitStore(closure, tempClosureVar, true);
 
   return closure;
 }
@@ -133,9 +141,9 @@ Value *ESTreeIRGen::genArrowFunctionExpression(
     ESTree::ArrowFunctionExpressionNode *AF,
     Identifier nameHint) {
   LLVM_DEBUG(
-      dbgs() << "Creating arrow function. "
-             << Builder.getInsertionBlock()->getParent()->getInternalName()
-             << ".\n");
+      llvh::dbgs()
+      << "Creating arrow function. "
+      << Builder.getInsertionBlock()->getParent()->getInternalName() << ".\n");
 
   if (AF->_async) {
     Builder.getModule()->getContext().getSourceErrorManager().error(
@@ -144,6 +152,7 @@ Value *ESTreeIRGen::genArrowFunctionExpression(
   }
 
   auto *newFunc = Builder.createFunction(
+      newScopeDesc(),
       nameHint,
       Function::DefinitionKind::ES6Arrow,
       ESTree::isStrict(AF->strictness),
@@ -170,7 +179,7 @@ Value *ESTreeIRGen::genArrowFunctionExpression(
   }
 
   // Emit CreateFunctionInst after we have restored the builder state.
-  return Builder.createCreateFunctionInst(newFunc);
+  return Builder.createCreateFunctionInst(newFunc, currentIRScope_);
 }
 
 namespace {
@@ -196,12 +205,14 @@ Function *ESTreeIRGen::genES5Function(
 
   Function *newFunction = isGeneratorInnerFunction
       ? Builder.createGeneratorInnerFunction(
+            newScopeDesc(),
             originalName,
             Function::DefinitionKind::ES5Function,
             ESTree::isStrict(functionNode->strictness),
             functionNode->getSourceRange(),
             /* insertBefore */ nullptr)
       : Builder.createFunction(
+            newScopeDesc(),
             originalName,
             Function::DefinitionKind::ES5Function,
             ESTree::isStrict(functionNode->strictness),
@@ -299,6 +310,7 @@ Function *ESTreeIRGen::genGeneratorFunction(
   // Build the outer function which creates the generator.
   // Does not have an associated source range.
   auto *outerFn = Builder.createGeneratorFunction(
+      newScopeDesc(),
       originalName,
       Function::DefinitionKind::ES5Function,
       ESTree::isStrict(functionNode->strictness),
@@ -333,7 +345,7 @@ Function *ESTreeIRGen::genGeneratorFunction(
         DoEmitParameters::No);
 
     // Create a generator function, which will store the arguments.
-    auto *gen = Builder.createCreateGeneratorInst(innerFn);
+    auto *gen = Builder.createCreateGeneratorInst(innerFn, currentIRScope_);
 
     if (!hasSimpleParams(functionNode)) {
       // If there are non-simple params, step the inner function once to
@@ -356,7 +368,10 @@ void ESTreeIRGen::setupLazyScope(
       bodyBlock->isLazyFunctionBody &&
       "setupLazyScope can only be used with lazy function bodies");
   // Set the AST position and variable context so we can continue later.
-  function->setLazyScope(saveCurrentScope());
+  // Save the scope chain starting from function's parent (i.e., the last
+  // materialized scope).
+  function->setLazyScope(
+      saveScopeChain(function->getFunctionScopeDesc()->getParent()));
   auto &lazySource = function->getLazySource();
   lazySource.bufferId = bodyBlock->bufferId;
   lazySource.nodeKind = getLazyFunctionKind(functionNode);
@@ -382,6 +397,7 @@ Function *ESTreeIRGen::genAsyncFunction(
   }
 
   auto *asyncFn = Builder.createAsyncFunction(
+      newScopeDesc(),
       originalName,
       Function::DefinitionKind::ES5Function,
       ESTree::isStrict(functionNode->strictness),
@@ -419,7 +435,7 @@ Function *ESTreeIRGen::genAsyncFunction(
         InitES5CaptureState::Yes,
         DoEmitParameters::No);
 
-    auto *genClosure = Builder.createCreateFunctionInst(gen);
+    auto *genClosure = Builder.createCreateFunctionInst(gen, currentIRScope_);
     auto *thisArg = curFunction()->function->getThisParameter();
     auto *argumentsList = curFunction()->createArgumentsInst;
 
@@ -441,13 +457,12 @@ void ESTreeIRGen::initCaptureStateInES5FunctionHelper() {
   if (!curFunction()->getSemInfo()->containsArrowFunctions)
     return;
 
-  auto *scope = curFunction()->function->getFunctionScope();
+  auto *scope = curFunction()->function->getFunctionScopeDesc();
 
   // "this".
   curFunction()->capturedThis = Builder.createVariable(
       scope, Variable::DeclKind::Var, genAnonymousLabelName("this"));
   emitStore(
-      Builder,
       Builder.getFunction()->getThisParameter(),
       curFunction()->capturedThis,
       true);
@@ -456,17 +471,13 @@ void ESTreeIRGen::initCaptureStateInES5FunctionHelper() {
   curFunction()->capturedNewTarget = Builder.createVariable(
       scope, Variable::DeclKind::Var, genAnonymousLabelName("new.target"));
   emitStore(
-      Builder,
-      Builder.createGetNewTargetInst(),
-      curFunction()->capturedNewTarget,
-      true);
+      Builder.createGetNewTargetInst(), curFunction()->capturedNewTarget, true);
 
   // "arguments".
   if (curFunction()->getSemInfo()->containsArrowFunctionsUsingArguments) {
     curFunction()->capturedArguments = Builder.createVariable(
         scope, Variable::DeclKind::Var, genAnonymousLabelName("arguments"));
     emitStore(
-        Builder,
         curFunction()->createArgumentsInst,
         curFunction()->capturedArguments,
         true);
@@ -481,18 +492,47 @@ void ESTreeIRGen::emitFunctionPrologue(
   auto *newFunc = curFunction()->function;
   auto *semInfo = curFunction()->getSemInfo();
   LLVM_DEBUG(
-      dbgs() << "Hoisting "
-             << (semInfo->varDecls.size() + semInfo->closures.size())
-             << " variable decls.\n");
+      llvh::dbgs() << "Hoisting "
+                   << (semInfo->varDecls.size() + semInfo->closures.size())
+                   << " variable decls.\n");
 
   Builder.setLocation(newFunc->getSourceRange().Start);
+  Builder.setCurrentSourceLevelScope(Builder.getLiteralUndefined());
+
+  BasicBlock *realEntry = &newFunc->front();
+  if (realEntry->empty()) {
+    Builder.setInsertionBlock(realEntry);
+  } else {
+    Builder.setInsertionPoint(&realEntry->front());
+  }
+  // Create the function scope.
+  currentIRScope_ =
+      Builder.createCreateScopeInst(newFunc->getFunctionScopeDesc());
 
   // Start pumping instructions into the entry basic block.
   Builder.setInsertionBlock(entry);
+  Builder.setCurrentSourceLevelScope(newFunc->getFunctionScopeDesc());
 
   // Always insert a CreateArgumentsInst. We will delete it later if it is
   // unused.
   curFunction()->createArgumentsInst = Builder.createCreateArgumentsInst();
+
+  // Always create the "this" parameter. It needs to be created before we
+  // initialized the ES5 capture state.
+  Builder.createParameter(newFunc, "this");
+
+  if (doInitES5CaptureState != InitES5CaptureState::No) {
+    initCaptureStateInES5FunctionHelper();
+  }
+
+  if (doEmitParameters != DoEmitParameters::No) {
+    // Create function parameters, register them in the scope, and initialize
+    // them with their income values.
+    emitParameters(funcNode);
+  } else {
+    newFunc->setExpectedParamCountIncludingThis(
+        countExpectedArgumentsIncludingThis(funcNode));
+  }
 
   // Create variable declarations for each of the hoisted variables and
   // functions. Initialize only the variables to undefined.
@@ -508,27 +548,12 @@ void ESTreeIRGen::emitFunctionPrologue(
     Builder.createStoreFrameInst(
         var->getObeysTDZ() ? (Literal *)Builder.getLiteralEmpty()
                            : (Literal *)Builder.getLiteralUndefined(),
-        var);
+        var,
+        currentIRScope_);
   }
   for (auto *fd : semInfo->closures) {
     declareVariableOrGlobalProperty(
         newFunc, VarDecl::Kind::Var, getNameFieldFromID(fd->_id));
-  }
-
-  // Always create the "this" parameter. It needs to be created before we
-  // initialized the ES5 capture state.
-  Builder.createParameter(newFunc, "this");
-
-  if (doInitES5CaptureState != InitES5CaptureState::No)
-    initCaptureStateInES5FunctionHelper();
-
-  // Construct the parameter list. Create function parameters and register
-  // them in the scope.
-  if (doEmitParameters == DoEmitParameters::Yes) {
-    emitParameters(funcNode);
-  } else {
-    newFunc->setExpectedParamCountIncludingThis(
-        countExpectedArgumentsIncludingThis(funcNode));
   }
 
   // Generate the code for import declarations before generating the rest of the
@@ -547,14 +572,14 @@ void ESTreeIRGen::emitFunctionPrologue(
 void ESTreeIRGen::emitParameters(ESTree::FunctionLikeNode *funcNode) {
   auto *newFunc = curFunction()->function;
 
-  LLVM_DEBUG(dbgs() << "IRGen function parameters.\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen function parameters.\n");
 
   // Create a variable for every parameter.
   for (auto paramDecl : funcNode->getSemInfo()->paramNames) {
     Identifier paramName = getNameFieldFromID(paramDecl.identifier);
-    LLVM_DEBUG(dbgs() << "Adding parameter: " << paramName << "\n");
+    LLVM_DEBUG(llvh::dbgs() << "Adding parameter: " << paramName << "\n");
     auto *paramStorage = Builder.createVariable(
-        newFunc->getFunctionScope(), Variable::DeclKind::Var, paramName);
+        newFunc->getFunctionScopeDesc(), Variable::DeclKind::Var, paramName);
     // Register the storage for the parameter.
     nameTable_.insert(paramName, paramStorage);
   }
@@ -636,12 +661,14 @@ void ESTreeIRGen::genDummyFunction(Function *dummy) {
 /// message.
 Function *ESTreeIRGen::genSyntaxErrorFunction(
     Module *M,
+    ScopeDesc *scopeDesc,
     Identifier originalName,
     SMRange sourceRange,
-    StringRef error) {
+    llvh::StringRef error) {
   IRBuilder builder{M};
 
   Function *function = builder.createFunction(
+      scopeDesc,
       originalName,
       Function::DefinitionKind::ES5Function,
       true,
@@ -652,9 +679,10 @@ Function *ESTreeIRGen::genSyntaxErrorFunction(
   builder.createParameter(function, "this");
   BasicBlock *firstBlock = builder.createBasicBlock(function);
   builder.setInsertionBlock(firstBlock);
+  builder.createCreateScopeInst(scopeDesc);
 
   builder.createThrowInst(builder.createCallInst(
-      emitLoad(
+      loadGlobalObjectProperty(
           builder, builder.createGlobalObjectProperty("SyntaxError", false)),
       builder.getLiteralUndefined(),
       builder.getLiteralString(error)));

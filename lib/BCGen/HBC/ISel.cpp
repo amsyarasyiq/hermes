@@ -22,6 +22,7 @@
 using namespace hermes;
 using namespace hbc;
 
+using llvh::dbgs;
 using llvh::Optional;
 
 #define INCLUDE_HBC_INSTRS
@@ -211,7 +212,7 @@ bool HBCISel::getDebugSourceLocation(
   }
 
   if (debugIdCache_.currentBufId != coords.bufId) {
-    StringRef filename = manager.getSourceUrl(coords.bufId);
+    llvh::StringRef filename = manager.getSourceUrl(coords.bufId);
     debugIdCache_.currentFilenameId = BCFGen_->addFilename(filename);
 
     auto sourceMappingUrl = manager.getSourceMappingUrl(coords.bufId);
@@ -287,7 +288,7 @@ void HBCISel::addDebugLexicalInfo() {
     BCFGen_->setLexicalParentID(BCFGen_->getFunctionID(parent));
 
   std::vector<Identifier> names;
-  for (const Variable *var : F_->getFunctionScope()->getVariables())
+  for (const Variable *var : F_->getFunctionScopeDesc()->getVariables())
     names.push_back(var->getName());
   BCFGen_->setDebugVariableNames(std::move(names));
 }
@@ -295,6 +296,12 @@ void HBCISel::addDebugLexicalInfo() {
 void HBCISel::populatePropertyCachingInfo() {
   BCFGen_->setHighestReadCacheIndex(lastPropertyReadCacheIndex_);
   BCFGen_->setHighestWriteCacheIndex(lastPropertyWriteCacheIndex_);
+}
+
+void HBCISel::generateScopeCreationInst(
+    ScopeCreationInst *Inst,
+    BasicBlock *next) {
+  llvm_unreachable("This is not a concrete instruction");
 }
 
 void HBCISel::generateSingleOperandInst(
@@ -801,7 +808,9 @@ void HBCISel::generateCreateFunctionInst(
     BasicBlock *next) {
   llvm_unreachable("CreateFunctionInst should have been lowered.");
 }
-
+void HBCISel::generateCreateScopeInst(CreateScopeInst *Inst, BasicBlock *next) {
+  llvm_unreachable("CreateScopeInst should have been lowered.");
+}
 void HBCISel::generateHBCCreateFunctionInst(
     HBCCreateFunctionInst *Inst,
     BasicBlock *) {
@@ -869,19 +878,14 @@ void HBCISel::generateDebuggerInst(DebuggerInst *Inst, BasicBlock *next) {
 void HBCISel::generateCreateRegExpInst(
     CreateRegExpInst *Inst,
     BasicBlock *next) {
+  const auto &pattern = Inst->getPattern()->getValue();
+  const auto &flags = Inst->getFlags()->getValue();
+  auto &ctx = F_->getParent()->getContext();
+  auto &regexp = ctx.getCompiledRegExp(
+      pattern.getUnderlyingPointer(), flags.getUnderlyingPointer());
+  uint32_t reBytecodeID = BCFGen_->addRegExp(&regexp);
   auto patternStrID = BCFGen_->getStringID(Inst->getPattern());
   auto flagsStrID = BCFGen_->getStringID(Inst->getFlags());
-  // Compile the regexp. We expect this to succeed because the AST went through
-  // the SemanticValidator. This is a bit of a hack: what we would really like
-  // to do is have the Parser emit a CompiledRegExp that can be threaded through
-  // the AST and then through the IR to this instruction selection, but that is
-  // too awkward, so we compile again here.
-  uint32_t reBytecodeID = UINT32_MAX;
-  if (auto regexp = CompiledRegExp::tryCompile(
-          Inst->getPattern()->getValue().str(),
-          Inst->getFlags()->getValue().str())) {
-    reBytecodeID = BCFGen_->addRegExp(std::move(*regexp));
-  }
   BCFGen_->emitCreateRegExp(
       encodeValue(Inst), patternStrID, flagsStrID, reBytecodeID);
 }
@@ -1322,10 +1326,10 @@ void HBCISel::generateHBCResolveEnvironment(
   // We statically determine the relative depth delta of the current scope
   // and the scope that the variable belongs to. Such delta is used as
   // the operand to get_scope instruction.
-  VariableScope *instScope = Inst->getScope();
+  ScopeDesc *instScope = Inst->getCreatedScopeDesc();
   Optional<int32_t> instScopeDepth = scopeAnalysis_.getScopeDepth(instScope);
   Optional<int32_t> curScopeDepth =
-      scopeAnalysis_.getScopeDepth(F_->getFunctionScope());
+      scopeAnalysis_.getScopeDepth(F_->getFunctionScopeDesc());
   if (!instScopeDepth || !curScopeDepth) {
     // the function did not have any CreateFunctionInst, this function is dead.
     emitUnreachableIfDebug();
@@ -1336,6 +1340,10 @@ void HBCISel::generateHBCResolveEnvironment(
       "Cannot access variables in inner scopes");
   int32_t delta = curScopeDepth.getValue() - instScopeDepth.getValue();
   assert(delta > 0 && "HBCResolveEnvironment for current scope");
+  if (std::numeric_limits<uint8_t>::max() < delta) {
+    F_->getContext().getSourceErrorManager().error(
+        Inst->getLocation(), "Variable environment is out-of-reach");
+  }
   BCFGen_->emitGetEnvironment(encodeValue(Inst), delta - 1);
 }
 void HBCISel::generateHBCStoreToEnvironmentInst(
@@ -1418,6 +1426,20 @@ void HBCISel::generateHBCLoadConstInst(
       auto parsedBigInt = bigint::ParsedBigInt::parsedBigIntFromNumericValue(
           cast<LiteralBigInt>(literal)->getValue()->str());
       assert(parsedBigInt && "should be valid");
+      if (bigint::tooManyBytes(parsedBigInt->getBytes().size())) {
+        // TODO: move this to the semantic analysis so we can get a proper
+        // warning (i.e., with the correct location for the literal).
+        std::string sizeStr;
+        {
+          llvh::raw_string_ostream OS(sizeStr);
+          OS << parsedBigInt->getBytes().size();
+        }
+        F_->getContext().getSourceErrorManager().warning(
+            Inst->getLocation(),
+            Twine("BigInt literal has too many bytes (") + sizeStr +
+                ") and a RangeError will be raised at runtime time if it "
+                "is referenced.");
+      }
       auto idx = BCFGen_->addBigInt(std::move(*parsedBigInt));
       if (idx <= UINT16_MAX) {
         BCFGen_->emitLoadConstBigInt(output, idx);

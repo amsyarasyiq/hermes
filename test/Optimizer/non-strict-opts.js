@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermes -target=HBC -dump-ir -O -fno-inline -non-strict %s | %FileCheck --match-full-lines %s
+// RUN: %hermes -target=HBC -dump-ir -O -fno-inline -non-strict %s | %FileCheckOrRegen --match-full-lines %s
 //
 // Ensure that Hermes-specific optimizations (parameter type inference) are performed in non-strict
 // mode. We need to disable inlining because it inlines foo() completely and we can't see the
@@ -18,25 +18,30 @@ function main()  {
   foo(2)
 }
 
-//CHECK-LABEL: function global() : undefined
-//CHECK-NEXT: frame = [], globals = [main]
-//CHECK-NEXT: %BB0:
-//CHECK-NEXT:   %0 = CreateFunctionInst %main() : undefined
-//CHECK-NEXT:   %1 = StorePropertyInst %0 : closure, globalObject : object, "main" : string
-//CHECK-NEXT:   %2 = ReturnInst undefined : undefined
-//CHECK-NEXT: function_end
+// Auto-generated content below. Please do not modify manually.
 
-//CHECK-LABEL: function main() : undefined
-//CHECK-NEXT: frame = []
-//CHECK-NEXT: %BB0:
-//CHECK-NEXT:   %0 = CreateFunctionInst %foo() : string
-//CHECK-NEXT:   %1 = CallInst %0 : closure, undefined : undefined, 2 : number
-//CHECK-NEXT:   %2 = ReturnInst undefined : undefined
-//CHECK-NEXT: function_end
+// CHECK:function global#0()#1 : undefined
+// CHECK-NEXT:frame = [], globals = [main]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{global#0()#1}
+// CHECK-NEXT:  %1 = CreateFunctionInst %main#0#1()#2 : undefined, %0
+// CHECK-NEXT:  %2 = StorePropertyInst %1 : closure, globalObject : object, "main" : string
+// CHECK-NEXT:  %3 = ReturnInst undefined : undefined
+// CHECK-NEXT:function_end
 
-//CHECK-LABEL: function foo(p1 : number) : string
-//CHECK-NEXT: frame = []
-//CHECK-NEXT: %BB0:
-//CHECK-NEXT:   %0 = BinaryOperatorInst '+', "value" : string, 2 : number
-//CHECK-NEXT:   %1 = ReturnInst %0 : string
-//CHECK-NEXT: function_end
+// CHECK:function main#0#1()#2 : undefined
+// CHECK-NEXT:frame = []
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{main#0#1()#2}
+// CHECK-NEXT:  %1 = CreateFunctionInst %foo#1#2()#3 : string, %0
+// CHECK-NEXT:  %2 = CallInst %1 : closure, undefined : undefined, 2 : number
+// CHECK-NEXT:  %3 = ReturnInst undefined : undefined
+// CHECK-NEXT:function_end
+
+// CHECK:function foo#1#2(p1 : number)#3 : string
+// CHECK-NEXT:frame = []
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{foo#1#2()#3}
+// CHECK-NEXT:  %1 = BinaryOperatorInst '+', "value" : string, 2 : number
+// CHECK-NEXT:  %2 = ReturnInst %1 : string
+// CHECK-NEXT:function_end

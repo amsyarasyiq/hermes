@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheck %s --match-full-lines
+// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheckOrRegen %s --match-full-lines
 // RUN: %hermes -hermes-parser -dump-ir %s -O
 
 function main(boop) {
@@ -14,35 +14,40 @@ function main(boop) {
   }
 }
 
+// Auto-generated content below. Please do not modify manually.
 
+// CHECK:function global#0()#1
+// CHECK-NEXT:frame = [], globals = [main]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{global#0()#1}
+// CHECK-NEXT:  %1 = CreateFunctionInst %main#0#1()#2, %0
+// CHECK-NEXT:  %2 = StorePropertyInst %1 : closure, globalObject : object, "main" : string
+// CHECK-NEXT:  %3 = AllocStackInst $?anon_0_ret
+// CHECK-NEXT:  %4 = StoreStackInst undefined : undefined, %3
+// CHECK-NEXT:  %5 = LoadStackInst %3
+// CHECK-NEXT:  %6 = ReturnInst %5
+// CHECK-NEXT:function_end
 
-//CHECK: function global()
-//CHECK: frame = [], globals = [main]
-//CHECK:   %BB0:
-//CHECK:     %0 = CreateFunctionInst %main()
-//CHECK:     %1 = StorePropertyInst %0 : closure, globalObject : object, "main" : string
-//CHECK:     %2 = AllocStackInst $?anon_0_ret
-//CHECK:     %3 = StoreStackInst undefined : undefined, %2
-//CHECK:     %4 = LoadStackInst %2
-//CHECK:     %5 = ReturnInst %4
+// CHECK:function main#0#1(boop)#2
+// CHECK-NEXT:frame = [boop#2, foo#2]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{main#0#1()#2}
+// CHECK-NEXT:  %1 = StoreFrameInst %boop, [boop#2], %0
+// CHECK-NEXT:  %2 = CreateFunctionInst %foo#1#2()#3, %0
+// CHECK-NEXT:  %3 = StoreFrameInst %2 : closure, [foo#2], %0
+// CHECK-NEXT:  %4 = ReturnInst undefined : undefined
+// CHECK-NEXT:function_end
 
-//CHECK: function main(boop)
-//CHECK: frame = [foo, boop]
-//CHECK:   %BB0:
-//CHECK:      %0 = StoreFrameInst %boop, [boop]
-//CHECK:      %1 = CreateFunctionInst %foo()
-//CHECK:      %2 = StoreFrameInst %1 : closure, [foo]
-//CHECK:      %3 = ReturnInst undefined : undefined
-
-//CHECK: function foo()
-//CHECK: frame = []
-//CHECK:   %BB0:
-//CHECK:      %0 = LoadFrameInst [boop@main]
-//CHECK:      %1 = CondBranchInst %0, %BB1, %BB2
-//CHECK:    %BB1:
-//CHECK:      %2 = BranchInst %BB3
-//CHECK:    %BB2:
-//CHECK:      %3 = BranchInst %BB3
-//CHECK:    %BB3:
-//CHECK:      %4 = ReturnInst undefined : undefined
-
+// CHECK:function foo#1#2()#3
+// CHECK-NEXT:frame = []
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{foo#1#2()#3}
+// CHECK-NEXT:  %1 = LoadFrameInst [boop#2@main], %0
+// CHECK-NEXT:  %2 = CondBranchInst %1, %BB1, %BB2
+// CHECK-NEXT:%BB1:
+// CHECK-NEXT:  %3 = BranchInst %BB3
+// CHECK-NEXT:%BB2:
+// CHECK-NEXT:  %4 = BranchInst %BB3
+// CHECK-NEXT:%BB3:
+// CHECK-NEXT:  %5 = ReturnInst undefined : undefined
+// CHECK-NEXT:function_end

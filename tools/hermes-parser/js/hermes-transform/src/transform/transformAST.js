@@ -14,16 +14,10 @@ import type {ESNode, Program} from 'hermes-estree';
 import type {TransformVisitor} from './transform';
 import type {RemoveCommentMutation} from './mutations/RemoveComment';
 
-import {parseForESLint} from 'hermes-eslint';
 import {updateAllParentPointers} from '../detachedNode';
 import {traverseWithContext} from '../traverse/traverse';
 import {MutationContext} from './MutationContext';
 import {getTransformContext} from './TransformContext';
-import {
-  addCommentsToNode,
-  attachComments,
-  getLeadingCommentsForNode,
-} from './comments/comments';
 import {performAddCommentsMutation} from './mutations/AddComments';
 import {performCloneCommentsToMutation} from './mutations/CloneCommentsTo';
 import {performInsertStatementMutation} from './mutations/InsertStatement';
@@ -32,23 +26,18 @@ import {performRemoveNodeMutation} from './mutations/RemoveNode';
 import {performRemoveStatementMutation} from './mutations/RemoveStatement';
 import {performReplaceNodeMutation} from './mutations/ReplaceNode';
 import {performReplaceStatementWithManyMutation} from './mutations/ReplaceStatementWithMany';
+import type {ParseResult} from './parse';
 
-export function getTransformedAST(
-  code: string,
-  visitors: TransformVisitor,
-): {
+export type transformASTResult = {
   ast: Program,
   astWasMutated: boolean,
   mutatedCode: string,
-} {
-  const {ast, scopeManager} = parseForESLint(code, {
-    sourceType: 'module',
-  });
+};
 
-  // attach comments before mutation. this will ensure that as nodes are
-  // cloned / moved around - comments remain in the correct place with respect to the node
-  attachComments(ast.comments, ast, code);
-
+export function transformAST(
+  {ast, scopeManager, code}: ParseResult,
+  visitors: TransformVisitor,
+): transformASTResult {
   // traverse the AST and colllect the mutations
   const transformContext = getTransformContext();
   traverseWithContext(
@@ -121,20 +110,6 @@ export function getTransformedAST(
     // Being strict here just helps us ensure we keep everything in sync
     if (mutationRoot) {
       updateAllParentPointers(mutationRoot);
-    }
-  }
-
-  // if the very first node in the program is replaced, it will take the docblock with it
-  // this is bad as it means we'll lose `@format`, `@flow`, licence, etc.
-  // so this hack just makes sure that we keep the docblock
-  // note that we do this **BEFORE** the comment mutations in case someone intentionally
-  // wants to remove the docblock comment for some weird reason
-  if (ast.docblock != null && ast.body.length > 0) {
-    const firstNode = ast.body[0];
-    const docblockComment = ast.docblock.comment;
-    const leadingComments = getLeadingCommentsForNode(firstNode);
-    if (!leadingComments.includes(docblockComment)) {
-      addCommentsToNode(firstNode, [docblockComment], 'leading');
     }
   }
 

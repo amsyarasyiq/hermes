@@ -36,6 +36,7 @@
 #include "hermes/VM/StackFrame.h"
 #include "hermes/VM/StackTracesTree-NoRuntime.h"
 #include "hermes/VM/SymbolRegistry.h"
+#include "hermes/VM/TimeLimitMonitor.h"
 #include "hermes/VM/TwineChar16.h"
 #include "hermes/VM/VMExperiments.h"
 
@@ -96,8 +97,6 @@ static const unsigned STACK_RESERVE = 32;
 
 /// Type used to assign object unique integer identifiers.
 using ObjectID = uint32_t;
-
-using DestructionCallback = std::function<void(Runtime &)>;
 
 #define PROP_CACHE_IDS(V) V(RegExpLastIndex, Predefined::lastIndex)
 
@@ -559,13 +558,6 @@ class Runtime : public PointerBase,
       JSObject *proto,
       unsigned reservedSlots);
 
-  /// Same as above but returns a raw pointer: standard warnings apply!
-  /// TODO: Delete this function once all callers are replaced with
-  /// getHiddenClassForPrototype.
-  inline HiddenClass *getHiddenClassForPrototypeRaw(
-      JSObject *proto,
-      unsigned reservedSlots);
-
   /// Return the global object.
   Handle<JSObject> getGlobal();
 
@@ -613,12 +605,6 @@ class Runtime : public PointerBase,
   /// thread, or a signal handler.
   void triggerTimeoutAsyncBreak() {
     triggerAsyncBreak(AsyncBreakReasonBits::Timeout);
-  }
-
-  /// Register \p callback which will be called
-  /// during runtime destruction.
-  void registerDestructionCallback(DestructionCallback callback) {
-    destructionCallbacks_.emplace_back(callback);
   }
 
 #ifdef HERMES_ENABLE_DEBUGGER
@@ -789,7 +775,7 @@ class Runtime : public PointerBase,
   void dumpOpcodeStats(llvh::raw_ostream &os) const;
 #endif
 
-#if defined(HERMESVM_PROFILER_JSFUNCTION) || defined(HERMESVM_PROFILER_EXTERN)
+#if defined(HERMESVM_PROFILER_JSFUNCTION)
   static std::atomic<ProfilerID> nextProfilerId;
 
   std::vector<ProfilerFunctionInfo> functionInfo{};
@@ -830,6 +816,9 @@ class Runtime : public PointerBase,
   /// Sampling profiler data for this runtime. The ctor/dtor of SamplingProfiler
   /// will automatically register/unregister this runtime from profiling.
   std::unique_ptr<SamplingProfiler> samplingProfiler;
+
+  /// Time limit monitor data for this runtime.
+  std::shared_ptr<TimeLimitMonitor> timeLimitMonitor;
 
 #ifdef HERMESVM_PROFILER_NATIVECALL
   /// Dump statistics about native calls.
@@ -961,11 +950,7 @@ class Runtime : public PointerBase,
   void getInlineCacheProfilerInfo(llvh::raw_ostream &ostream);
 #endif
 
-#if defined(HERMESVM_PROFILER_EXTERN)
- public:
-#else
  private:
-#endif
   /// Only called internally or by the wrappers used for profiling.
   CallResult<HermesValue> interpretFunctionImpl(CodeBlock *newCodeBlock);
 
@@ -1291,9 +1276,6 @@ class Runtime : public PointerBase,
 
   /// Pointer to the code coverage profiler.
   const std::unique_ptr<CodeCoverageProfiler> codeCoverageProfiler_;
-
-  /// A list of callbacks to call before runtime destruction.
-  std::vector<DestructionCallback> destructionCallbacks_;
 
   /// Bit flags for async break request reasons.
   enum class AsyncBreakReasonBits : uint8_t {

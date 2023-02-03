@@ -412,13 +412,7 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
 
   // "Forward declaration" of BigInt.prototype. Its properties will be
   // populated later.
-  runtime.bigintPrototype =
-      runtime
-          .ignoreAllocationFailure(JSBigInt::create(
-              runtime,
-              BigIntPrimitive::fromSignedNoThrow(runtime, 0),
-              Handle<JSObject>::vmcast(&runtime.objectPrototype)))
-          .getHermesValue();
+  runtime.bigintPrototype = JSObject::create(runtime).getHermesValue();
 
   // "Forward declaration" of Number.prototype. Its properties will be
   // populated later.
@@ -821,8 +815,7 @@ void initGlobalObject(Runtime &runtime, const JSLibFlags &jsLibFlags) {
 #ifdef HERMES_ENABLE_INTL
   // Define the global Intl object
   // TODO T65916424: Consider how we can move this somewhere more modular.
-
-  if (LLVM_UNLIKELY(runtime.hasIntl())) {
+  if (runtime.hasIntl()) {
     runtime.ignoreAllocationFailure(JSObject::defineOwnProperty(
         runtime.getGlobal(),
         runtime,

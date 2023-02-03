@@ -16,11 +16,7 @@ namespace hermes {
 namespace platform_unicode {
 
 namespace {
-constexpr double MINUTES_PER_HOUR = 60;
-constexpr double SECONDS_PER_MINUTE = 60;
 constexpr double MS_PER_SECOND = 1000;
-constexpr double MS_PER_MINUTE = MS_PER_SECOND * SECONDS_PER_MINUTE;
-constexpr double MS_PER_HOUR = MS_PER_MINUTE * MINUTES_PER_HOUR;
 
 /// Create the locale used for date formatting and collation. \return the
 /// locale, transferring ownership to the caller (the "create" rule).
@@ -44,11 +40,11 @@ CFLocaleRef copyLocale() {
   return CFLocaleCreateCopy(nullptr, hermesLocale);
 }
 
-/// return the local time zone adjustment in milliseconds.
-double localTZA() {
+/// return the offset from GMT to local time, measured in milliseconds.
+double localOffsetFromGMT() {
   ::tzset();
 
-  // Get the current time in seconds (might have DST adjustment included).
+  // Get the current time in seconds (with any applicable DST adjustment).
   time_t currentWithDST = std::time(nullptr);
   if (currentWithDST == static_cast<time_t>(-1)) {
     return 0;
@@ -57,17 +53,10 @@ double localTZA() {
   // Deconstruct the time into localTime.
   std::tm *local = std::localtime(&currentWithDST);
   if (!local) {
-    llvm_unreachable("localtime failed in localTZA()");
+    llvm_unreachable("localtime failed in localOffsetFromGMT()");
   }
 
-#ifdef _WINDOWS
-  long gmtoff = -_timezone;
-#else
-  long gmtoff = local->tm_gmtoff;
-#endif
-
-  // Use the gmtoff field and subtract an hour if currently in DST.
-  return (gmtoff * MS_PER_SECOND) - (local->tm_isdst ? MS_PER_HOUR : 0);
+  return local->tm_gmtoff * MS_PER_SECOND;
 }
 
 } // namespace
@@ -123,7 +112,7 @@ void dateFormat(
 
   CFLocaleRef localeRef = copyLocale();
   CFTimeZoneRef timezoneRef = CFTimeZoneCreateWithTimeIntervalFromGMT(
-      nullptr, localTZA() / MS_PER_SECOND);
+      nullptr, localOffsetFromGMT() / MS_PER_SECOND);
 
   auto formatter =
       CFDateFormatterCreate(nullptr, localeRef, dateStyle, timeStyle);

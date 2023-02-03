@@ -8,6 +8,7 @@
 #ifndef HERMES_VM_JSREGEXP_H
 #define HERMES_VM_JSREGEXP_H
 
+#include "hermes/Regex/Regex.h"
 #include "hermes/Regex/RegexTypes.h"
 #include "hermes/VM/JSObject.h"
 #include "hermes/VM/RegExpMatch.h"
@@ -95,6 +96,10 @@ class JSRegExp final : public JSObject {
     self->syntaxFlags_ = flags;
   }
 
+  Handle<JSObject> getGroupNameMappings(Runtime &runtime);
+
+  void setGroupNameMappings(Runtime &runtime, JSObject *groupObj);
+
   /// Searches self for a match for \str.
   /// \p searchStartOffset is the offset from which to begin searching.
   /// If searchStartOffset exceeds the length of the string, or if no match
@@ -127,6 +132,12 @@ class JSRegExp final : public JSObject {
   /// Store a copy of the \p bytecode array.
   void initializeBytecode(llvh::ArrayRef<uint8_t> bytecode);
 
+  static ExecutionStatus initializeGroupNameMappingObj(
+      Runtime &runtime,
+      Handle<JSRegExp> selfHandle,
+      std::deque<llvh::SmallVector<char16_t, 5>> &orderedNamedGroups,
+      regex::ParsedGroupNamesMapping &parsedMappings);
+
   /// The order of properties here is important to avoid wasting space. When
   /// compressed pointers are enabled, JSObject has an odd number of 4 byte
   /// properties. So putting this GCPointer before the native pointer guarantees
@@ -138,6 +149,8 @@ class JSRegExp final : public JSObject {
 
   regex::SyntaxFlags syntaxFlags_ = {};
 
+  GCPointer<JSObject> groupNameMappings_{nullptr};
+
   // Finalizer to clean up stored native regex
   static void _finalizeImpl(GCCell *cell, GC &gc);
   static size_t _mallocSizeImpl(GCCell *cell);
@@ -148,10 +161,6 @@ class JSRegExp final : public JSObject {
   static void _snapshotAddNodesImpl(GCCell *cell, GC &gc, HeapSnapshot &snap);
 #endif
 };
-
-static_assert(
-    sizeof(JSRegExp) <= sizeof(JSObjectAndDirectProps),
-    "Possible unnecessary padding in JSRegExp");
 
 } // namespace vm
 } // namespace hermes

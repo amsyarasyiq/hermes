@@ -56,7 +56,11 @@
 #endif
 
 #include <future>
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 namespace hermes {
 namespace vm {
 
@@ -405,8 +409,10 @@ Runtime::~Runtime() {
     delete &runtimeModuleList_.back();
   }
 
-  for (auto callback : destructionCallbacks_) {
-    callback(*this);
+  // Unwatch the runtime from the time limit monitor in case the latter still
+  // has any references to this.
+  if (timeLimitMonitor) {
+    timeLimitMonitor->unwatchRuntime(*this);
   }
 
   crashMgr_->unregisterMemory(this);
@@ -566,8 +572,14 @@ void Runtime::markRoots(
     acceptor.endRootSection();
   }
 
-  // Mark the alternative roots during the normal mark roots call.
-  markRootsForCompleteMarking(acceptor);
+  {
+    MarkRootsPhaseTimer timer(*this, RootAcceptor::Section::SamplingProfiler);
+    acceptor.beginRootSection(RootAcceptor::Section::SamplingProfiler);
+    if (samplingProfiler) {
+      samplingProfiler->markRoots(acceptor);
+    }
+    acceptor.endRootSection();
+  }
 
   {
     MarkRootsPhaseTimer timer(
@@ -624,7 +636,7 @@ void Runtime::markRootsForCompleteMarking(
   MarkRootsPhaseTimer timer(*this, RootAcceptor::Section::SamplingProfiler);
   acceptor.beginRootSection(RootAcceptor::Section::SamplingProfiler);
   if (samplingProfiler) {
-    samplingProfiler->markRoots(acceptor);
+    samplingProfiler->markRootsForCompleteMarking(acceptor);
   }
   acceptor.endRootSection();
 }

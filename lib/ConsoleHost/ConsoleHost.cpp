@@ -275,8 +275,9 @@ bool executeHBCBytecodeImpl(
   }
 
   if (options.timeLimit > 0) {
-    vm::TimeLimitMonitor::getInstance().watchRuntime(
-        *runtime, options.timeLimit);
+    runtime->timeLimitMonitor = vm::TimeLimitMonitor::getOrCreate();
+    runtime->timeLimitMonitor->watchRuntime(
+        *runtime, std::chrono::milliseconds(options.timeLimit));
   }
 
   if (shouldRecordGCStats) {
@@ -369,24 +370,12 @@ bool executeHBCBytecodeImpl(
     }
   }
 
-  if (options.timeLimit > 0) {
-    vm::TimeLimitMonitor::getInstance().unwatchRuntime(*runtime);
-  }
-
 #ifdef HERMESVM_PROFILER_OPCODE
   runtime->dumpOpcodeStats(llvh::outs());
 #endif
 
 #ifdef HERMESVM_PROFILER_JSFUNCTION
   runtime->dumpJSFunctionStats();
-#endif
-
-#ifdef HERMESVM_PROFILER_EXTERN
-  if (options.patchProfilerSymbols) {
-    patchProfilerSymbols(runtime.get());
-  } else {
-    dumpProfilerSymbolMap(runtime.get(), options.profilerSymbolsFile);
-  }
 #endif
 
 #ifdef HERMESVM_PROFILER_NATIVECALL

@@ -20,7 +20,11 @@
 #include "hermes/VM/RuntimeModule.h"
 #include "hermes/VM/StackFrame-inline.h"
 #include "hermes/VM/StringView.h"
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 #ifdef HERMES_ENABLE_DEBUGGER
 
 namespace hermes {
@@ -1143,7 +1147,12 @@ bool Debugger::resolveBreakpointLocation(Breakpoint &breakpoint) const {
            (start.col <= request.column && request.column <= end.col))) {
         // The code block probably contains the breakpoint we want to set.
         // First, we compile it.
-        codeBlock->lazyCompile(runtime_);
+        if (LLVM_UNLIKELY(
+                codeBlock->lazyCompile(runtime_) ==
+                ExecutionStatus::EXCEPTION)) {
+          // TODO: how to better handle this?
+          runtime_.clearThrownValue();
+        }
 
         // We've found the codeBlock at this level and expanded it,
         // so there's no point continuing the search.

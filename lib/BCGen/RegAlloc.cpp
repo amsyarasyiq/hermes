@@ -304,7 +304,7 @@ void RegisterAllocator::calculateLocalLiveness(
 #ifndef NDEBUG
 static void dumpVector(
     const BitVector &bv,
-    StringRef text,
+    llvh::StringRef text,
     llvh::raw_ostream &ost = llvh::errs()) {
   ost << text;
   for (unsigned i = 0; i < bv.size(); i++) {
@@ -371,6 +371,8 @@ void RegisterAllocator::calculateGlobalLiveness(ArrayRef<BasicBlock *> order) {
 
   LLVM_DEBUG(
       dbgs() << "Completed liveness in " << iterations << " iterations\n");
+  // Suppress -Wunused-but-set-variable warning with new compilers.
+  (void)iterations;
 }
 
 Interval &RegisterAllocator::getInstructionInterval(Instruction *I) {

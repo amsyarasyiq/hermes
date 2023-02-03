@@ -13,13 +13,14 @@
 #include "hermes/AST/SemValidate.h"
 #include "hermes/IR/IRBuilder.h"
 #include "hermes/IRGen/IRGen.h"
+#include "hermes/Support/InternalIdentifierMaker.h"
 
+#include "llvh/ADT/StringRef.h"
 #include "llvh/Support/Debug.h"
 
 // Use this value to enable debug logging from the command line.
 #define DEBUG_TYPE "irgen"
 
-using llvh::dbgs;
 using llvh::dyn_cast_or_null;
 
 namespace hermes {
@@ -34,23 +35,11 @@ using VarDecl = sem::FunctionInfo::VarDecl;
 //===----------------------------------------------------------------------===//
 // Free standing helpers.
 
-/// Emit an instruction to load a value from a specified location.
-/// \param from location to load from, either a Variable or
-/// GlobalObjectProperty. \param inhibitThrow  if true, do not throw when
-/// loading from mmissing global properties. \return the instruction performing
-/// the load.
-Instruction *
-emitLoad(IRBuilder &builder, Value *from, bool inhibitThrow = false);
-
-/// Emit an instruction to a store a value into the specified location.
-/// \param storedValue value to store
-/// \param ptr location to store into, either a Variable or
-///     GlobalObjectProperty.
-/// \param declInit whether this is a declaration initializer, so the TDZ check
-///     should be skipped.
-/// \return the instruction performing the store.
-Instruction *
-emitStore(IRBuilder &builder, Value *storedValue, Value *ptr, bool declInit);
+/// Emit a code sequence to load the global object property \p prop.
+Instruction *loadGlobalObjectProperty(
+    IRBuilder &builder,
+    GlobalObjectProperty *prop,
+    bool inhibitThrow = false);
 
 /// Return the name field from ID nodes.
 inline Identifier getNameFieldFromID(const ESTree::Node *ID) {
@@ -94,6 +83,12 @@ class FunctionContext {
   /// The old value which we save and will restore on destruction.
   FunctionContext *oldContext_;
 
+  /// The previous currentIRScopeDesc value.
+  ScopeDesc *oldIRScopeDesc_;
+
+  /// The previous currentIRScope value.
+  CreateScopeInst *oldIRScope_;
+
   /// As we descend into a new function, we save the state of the builder
   /// here. It is automatically restored once we are done with the function.
   IRBuilder::SaveRestore builderSaveState_;
@@ -115,9 +110,7 @@ class FunctionContext {
   /// Stack Register that will hold the return value of the global scope.
   AllocStackInst *globalReturnRegister{nullptr};
 
-  /// A running counter for anonymous closure. We append this number to some
-  /// label to create a unique number;
-  size_t anonymousLabelCounter{0};
+  InternalIdentifierMaker anonymousIDs_;
 
   /// This holds the CreateArguments instruction. We always insert it in the
   /// prologue and delete it in the epilogue if it wasn't used.
@@ -165,7 +158,7 @@ class FunctionContext {
 
   /// Generate a unique string that represents a temporary value. The string
   /// \p hint appears in the name.
-  Identifier genAnonymousLabelName(StringRef const hint);
+  Identifier genAnonymousLabelName(llvh::StringRef const hint);
 
   /// Initialize an empty goto label. All labels in JavaScript a structured, so
   /// a label is guaranteed to be visited and initialized before it is used.
@@ -356,7 +349,7 @@ class ESTreeIRGen {
 
   /// Lexical scope chain from the runtime, used to resolve identifiers in local
   /// eval.
-  std::shared_ptr<SerializedScope> lexicalScopeChain;
+  SerializedScopePtr lexicalScopeChain;
 
   /// Identifier representing the string "eval".
   const Identifier identEval_;
@@ -367,9 +360,16 @@ class ESTreeIRGen {
   /// Identifier representing the string "?default".
   const Identifier identDefaultExport_;
 
+  /// The current scope descriptor available for IR generation. All new
+  /// functions created in this scope will define a new, inner scope.
+  ScopeDesc *currentIRScopeDesc_;
+
+  /// The current scope object available for IR generation.
+  CreateScopeInst *currentIRScope_{};
+
   /// Generate a unique string that represents a temporary value. The string \p
   /// hint appears in the name.
-  Identifier genAnonymousLabelName(StringRef hint) {
+  Identifier genAnonymousLabelName(llvh::StringRef hint) {
     return curFunction()->genAnonymousLabelName(hint);
   }
 
@@ -406,9 +406,10 @@ class ESTreeIRGen {
   /// message.
   static Function *genSyntaxErrorFunction(
       Module *M,
+      ScopeDesc *scopeDesc,
       Identifier originalName,
       SMRange sourceRange,
-      StringRef error);
+      llvh::StringRef error);
 
  private:
   /// @name statements
@@ -626,6 +627,8 @@ class ESTreeIRGen {
       AllocStackInst *isReturn,
       BasicBlock *nextBB,
       AllocStackInst *received = nullptr);
+
+  Value *genRegExpLiteral(ESTree::RegExpLiteralNode *RE);
 
   /// @}
 
@@ -868,7 +871,7 @@ class ESTreeIRGen {
   /// Generate a call to a method of HermesInternal with the specified name \p
   /// name.
   Value *genHermesInternalCall(
-      StringRef name,
+      llvh::StringRef name,
       Value *thisValue,
       ArrayRef<Value *> args);
 
@@ -879,7 +882,7 @@ class ESTreeIRGen {
 
   /// Generate code to ensure that \p value is an object and it it isn't, throw
   /// a type error with the specified message.
-  void emitEnsureObject(Value *value, StringRef message);
+  void emitEnsureObject(Value *value, llvh::StringRef message);
 
   /// \return the internal value @@iterator
   Value *emitIteratorSymbol();
@@ -1035,33 +1038,39 @@ class ESTreeIRGen {
       Identifier nameHint);
 
  private:
-  /// "Converts" a ScopeChain into a SerializedScope by resolving the
+  /// "Converts" a ScopeChain into a SerializedScopePtr chain by resolving the
   /// identifiers.
-  std::shared_ptr<SerializedScope> resolveScopeIdentifiers(
-      const ScopeChain &chain);
-
-  /// Materialize the provided scope.
-  void materializeScopesInChain(
-      Function *wrapperFunction,
-      const std::shared_ptr<const SerializedScope> &scope,
-      int depth);
-
-  /// Add dummy functions for lexical scope debug info
-  void addLexicalDebugInfo(
-      Function *child,
-      Function *global,
-      const std::shared_ptr<const SerializedScope> &scope);
+  SerializedScopePtr resolveScopeIdentifiers(const ScopeChain &chain);
 
   /// Save all variables currently in scope, for lazy compilation.
-  std::shared_ptr<SerializedScope> saveCurrentScope() {
-    return serializeScope(curFunction(), true);
+  SerializedScopePtr saveScopeChain(ScopeDesc *S) {
+    return serializeScope(S, true);
   }
 
   /// Recursively serialize scopes. The global scope is serialized
   /// if and only if it's the first scope and includeGlobal is true.
-  std::shared_ptr<SerializedScope> serializeScope(
-      FunctionContext *ctx,
-      bool includeGlobal);
+  SerializedScopePtr serializeScope(ScopeDesc *S, bool includeGlobal);
+
+  ScopeDesc *newScopeDesc() {
+    return currentIRScopeDesc_->createInnerScope();
+  }
+
+  /// Emit an instruction to load a value from a specified location.
+  /// \param from location to load from, either a Variable or
+  ///     GlobalObjectProperty.
+  /// \param inhibitThrow  if true, do not throw when loading from missing
+  ///     global properties.
+  /// \return the instruction performing the load.
+  Instruction *emitLoad(Value *from, bool inhibitThrow = false);
+
+  /// Emit an instruction to a store a value into the specified location.
+  /// \param storedValue value to store
+  /// \param ptr location to store into, either a Variable or
+  ///     GlobalObjectProperty.
+  /// \param declInit whether this is a declaration initializer, so the TDZ
+  ///     check should be skipped.
+  /// \return the instruction performing the store.
+  Instruction *emitStore(Value *storedValue, Value *ptr, bool declInit);
 };
 
 template <typename EB, typename EF, typename EH>

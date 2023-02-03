@@ -9,6 +9,7 @@
 /// \file
 /// ES7 22.2 TypedArray
 //===----------------------------------------------------------------------===//
+
 #include "JSLibInternal.h"
 #include "hermes/VM/JSArrayBuffer.h"
 #include "hermes/VM/JSLib/Sorting.h"
@@ -16,7 +17,11 @@
 #include "hermes/VM/Operations.h"
 #include "hermes/VM/StringBuilder.h"
 #include "hermes/VM/StringView.h"
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 namespace hermes {
 namespace vm {
 
@@ -742,7 +747,8 @@ typedArrayPrototypeByteLength(void *, Runtime &runtime, NativeArgs args) {
     return ExecutionStatus::EXCEPTION;
   }
   auto self = args.vmcastThis<JSTypedArrayBase>();
-  return HermesValue::encodeNumberValue(self->getByteLength());
+  return HermesValue::encodeNumberValue(
+      self->attached(runtime) ? self->getByteLength() : 0);
 }
 
 /// ES6 22.2.3.3
@@ -756,6 +762,68 @@ typedArrayPrototypeByteOffset(void *, Runtime &runtime, NativeArgs args) {
   return HermesValue::encodeNumberValue(
       self->attached(runtime) && self->getLength() != 0 ? self->getByteOffset()
                                                         : 0);
+}
+
+/// ES6 23.2.3.1
+CallResult<HermesValue>
+typedArrayPrototypeAt(void *, Runtime &runtime, NativeArgs args) {
+  // 1. Let O be the this value.
+  // 2. Perform ? ValidateTypedArray(O).
+  if (LLVM_UNLIKELY(
+          JSTypedArrayBase::validateTypedArray(
+              runtime, args.getThisHandle(), true) ==
+          ExecutionStatus::EXCEPTION)) {
+    return ExecutionStatus::EXCEPTION;
+  }
+  GCScope gcScope{runtime};
+
+  auto O = args.vmcastThis<JSTypedArrayBase>();
+
+  // 3. Let len be O.[[ArrayLength]].
+  // The this object’s [[ArrayLength]] internal slot is accessed in place of
+  // performing a [[Get]] of "length".
+  double len = O->getLength();
+
+  // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+  auto idx = args.getArgHandle(0);
+  auto relativeIndexRes = toIntegerOrInfinity(runtime, idx);
+  if (relativeIndexRes == ExecutionStatus::EXCEPTION) {
+    return ExecutionStatus::EXCEPTION;
+  }
+  const double relativeIndex = relativeIndexRes->getNumber();
+
+  double k;
+  // 5. If relativeIndex ≥ 0, then
+  if (relativeIndex >= 0) {
+    // a. Let k be relativeIndex.
+    k = relativeIndex;
+  } else {
+    // 6. Else,
+    // a. Let k be len + relativeIndex.
+    k = len + relativeIndex;
+  }
+
+  // 7. If k < 0 or k ≥ len, return undefined.
+  if (k < 0 || k >= len) {
+    return HermesValue::encodeUndefinedValue();
+  }
+
+  // 8. Return ? Get(O, ! ToString(𝔽(k))).
+  // Since we know we have a TypedArray, we can directly call JSTypedArray::at
+  // rather than getComputed_RJS like the spec mandates.
+#define TYPED_ARRAY(name, type)                                            \
+  case CellKind::name##ArrayKind: {                                        \
+    auto *arr = vmcast<JSTypedArray<type, CellKind::name##ArrayKind>>(*O); \
+    if (!arr->attached(runtime)) {                                         \
+      return runtime.raiseTypeError("Underlying ArrayBuffer detached");    \
+    }                                                                      \
+    return HermesValue::encodeNumberValue(arr->at(runtime, k));            \
+  }
+  switch (O->getKind()) {
+#include "hermes/VM/TypedArrays.def"
+    default:
+      llvm_unreachable("Invalid TypedArray after ValidateTypedArray call");
+  }
 }
 
 /// ES6 22.2.3.5
@@ -1233,7 +1301,8 @@ typedArrayPrototypeLength(void *, Runtime &runtime, NativeArgs args) {
     return ExecutionStatus::EXCEPTION;
   }
   auto self = args.vmcastThis<JSTypedArrayBase>();
-  return HermesValue::encodeNumberValue(self->getLength());
+  return HermesValue::encodeNumberValue(
+      self->attached(runtime) ? self->getLength() : 0);
 }
 
 CallResult<HermesValue>
@@ -1750,6 +1819,13 @@ Handle<JSObject> createTypedArrayBaseConstructor(Runtime &runtime) {
       false,
       true);
   // Methods.
+  defineMethod(
+      runtime,
+      proto,
+      Predefined::getSymbolID(Predefined::at),
+      nullptr,
+      typedArrayPrototypeAt,
+      1);
   defineMethod(
       runtime,
       proto,

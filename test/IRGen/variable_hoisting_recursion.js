@@ -5,9 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheck %s --match-full-lines
+// RUN: %hermes -hermes-parser -dump-ir %s -O0 | %FileCheckOrRegen %s --match-full-lines
 // RUN: %hermes -hermes-parser -dump-ir %s -O
-
 
 function fibonacci(n) {
    if (n){
@@ -17,33 +16,39 @@ function fibonacci(n) {
    }
 }
 
-//CHECK: function global()
-//CHECK: frame = [], globals = [fibonacci]
-//CHECK:   %BB0:
-//CHECK:     %0 = CreateFunctionInst %fibonacci()
-//CHECK:     %1 = StorePropertyInst %0 : closure, globalObject : object, "fibonacci" : string
-//CHECK:     %2 = AllocStackInst $?anon_0_ret
-//CHECK:     %3 = StoreStackInst undefined : undefined, %2
-//CHECK:     %4 = LoadStackInst %2
-//CHECK:     %5 = ReturnInst %4
-//CHECK: function fibonacci(n)
-//CHECK: frame = [n]
-//CHECK:   %BB0:
-//CHECK:     %0 = StoreFrameInst %n, [n]
-//CHECK:     %1 = LoadFrameInst [n]
-//CHECK:     %2 = CondBranchInst %1, %BB1, %BB2
-//CHECK:   %BB1:
-//CHECK:     %3 = LoadFrameInst [n]
-//CHECK:     %4 = ReturnInst %3
-//CHECK:   %BB2:
-//CHECK:     %5 = LoadPropertyInst globalObject : object, "fibonacci" : string
-//CHECK:     %6 = LoadFrameInst [n]
-//CHECK:     %7 = CallInst %5, undefined : undefined, %6
-//CHECK:     %8 = ReturnInst %7
-//CHECK:   %BB3:
-//CHECK:     %9 = ReturnInst undefined : undefined
-//CHECK:   %BB4:
-//CHECK:     %10 = BranchInst %BB3
-//CHECK:   %BB5:
-//CHECK:     %11 = BranchInst %BB3
+// Auto-generated content below. Please do not modify manually.
 
+// CHECK:function global#0()#1
+// CHECK-NEXT:frame = [], globals = [fibonacci]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{global#0()#1}
+// CHECK-NEXT:  %1 = CreateFunctionInst %fibonacci#0#1()#2, %0
+// CHECK-NEXT:  %2 = StorePropertyInst %1 : closure, globalObject : object, "fibonacci" : string
+// CHECK-NEXT:  %3 = AllocStackInst $?anon_0_ret
+// CHECK-NEXT:  %4 = StoreStackInst undefined : undefined, %3
+// CHECK-NEXT:  %5 = LoadStackInst %3
+// CHECK-NEXT:  %6 = ReturnInst %5
+// CHECK-NEXT:function_end
+
+// CHECK:function fibonacci#0#1(n)#2
+// CHECK-NEXT:frame = [n#2]
+// CHECK-NEXT:%BB0:
+// CHECK-NEXT:  %0 = CreateScopeInst %S{fibonacci#0#1()#2}
+// CHECK-NEXT:  %1 = StoreFrameInst %n, [n#2], %0
+// CHECK-NEXT:  %2 = LoadFrameInst [n#2], %0
+// CHECK-NEXT:  %3 = CondBranchInst %2, %BB1, %BB2
+// CHECK-NEXT:%BB1:
+// CHECK-NEXT:  %4 = LoadFrameInst [n#2], %0
+// CHECK-NEXT:  %5 = ReturnInst %4
+// CHECK-NEXT:%BB2:
+// CHECK-NEXT:  %6 = LoadPropertyInst globalObject : object, "fibonacci" : string
+// CHECK-NEXT:  %7 = LoadFrameInst [n#2], %0
+// CHECK-NEXT:  %8 = CallInst %6, undefined : undefined, %7
+// CHECK-NEXT:  %9 = ReturnInst %8
+// CHECK-NEXT:%BB3:
+// CHECK-NEXT:  %10 = ReturnInst undefined : undefined
+// CHECK-NEXT:%BB4:
+// CHECK-NEXT:  %11 = BranchInst %BB3
+// CHECK-NEXT:%BB5:
+// CHECK-NEXT:  %12 = BranchInst %BB3
+// CHECK-NEXT:function_end

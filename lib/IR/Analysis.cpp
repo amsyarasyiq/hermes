@@ -207,59 +207,80 @@ BasicBlock *LoopAnalysis::getLoopPreheader(const BasicBlock *BB) const {
   return nullptr;
 }
 
+static llvh::Optional<int> &nextScopeDepth(llvh::Optional<int> &depth) {
+  if (depth) {
+    *depth -= 1;
+  }
+  return depth;
+}
+
+Function *FunctionScopeAnalysis::computeParent(
+    ScopeDesc *thisScope,
+    ScopeDesc *parentScope,
+    const ScopeData &sd) {
+  return (parentScope->hasFunction() &&
+          parentScope->getFunction() != thisScope->getFunction())
+      ? parentScope->getFunction()
+      : sd.parent;
+}
+
 FunctionScopeAnalysis::ScopeData
-FunctionScopeAnalysis::calculateFunctionScopeData(Function *F) {
-  if (lexicalScopeMap_.find(F) == lexicalScopeMap_.end()) {
+FunctionScopeAnalysis::calculateFunctionScopeData(
+    ScopeDesc *scopeDesc,
+    llvh::Optional<int> depth) {
+  auto entry = lexicalScopeDescMap_.find(scopeDesc);
+  if (entry != lexicalScopeDescMap_.end()) {
+    return entry->second;
+  }
+
+  if (!scopeDesc->hasFunction()) {
+    // The only scope that doesn't have a function is the Module's initial
+    // scope.
+    assert(scopeDesc->getParent() == nullptr);
+  } else {
     // If the function is a CommonJS module,
     // then it won't have a CreateFunctionInst, so calculate the depth manually.
+    Function *F = scopeDesc->getFunction();
     Module *module = F->getParent();
     if (module->findCJSModule(F)) {
       return ScopeData{module->getTopLevelFunction(), 1, false};
     }
-
-    // To find the scope data of a function, we try to locate the
-    // CreateFunctionInst that creates this function. The scope of F
-    // will be 1 more than the scope depth of the CreateFunctionInst.
-    const CreateFunctionInst *Inst = nullptr;
-    for (auto *user : F->getUsers()) {
-      if (llvh::isa<CreateFunctionInst>(user)) {
-        assert(Inst == nullptr && "Function has multiple CreateFunctionInst");
-        Inst = llvh::dyn_cast<CreateFunctionInst>(user);
-      }
-    }
-    // Because the calculation is done lazily, any function requested
-    // must have a CreateFunctionInst.
-    if (Inst == nullptr) {
-      LLVM_DEBUG(
-          dbgs() << "Function \"" << F->getInternalName()
-                 << "\" has no CreateFunctionInst\n");
-      lexicalScopeMap_[F] = ScopeData::orphan();
-      return lexicalScopeMap_[F];
-    }
-    Function *Parent = Inst->getParent()->getParent();
-    ScopeData parentData = calculateFunctionScopeData(Parent);
-    if (!parentData.orphaned) {
-      lexicalScopeMap_[F] = ScopeData(Parent, parentData.depth + 1);
-    } else {
-      lexicalScopeMap_[F] = ScopeData::orphan();
-    }
   }
-  return lexicalScopeMap_[F];
+
+  ScopeData ret = ScopeData::orphan();
+  if (ScopeDesc *parentScope = scopeDesc->getParent()) {
+    ScopeData parentData =
+        calculateFunctionScopeData(parentScope, nextScopeDepth(depth));
+    if (!parentData.orphaned && (parentData.depth >= 0 || depth)) {
+      assert(!depth || (depth == parentData.depth));
+      ret = ScopeData(
+          computeParent(scopeDesc, parentScope, parentData),
+          parentData.depth + 1);
+    }
+  } else if (depth) {
+    ret = ScopeData(nullptr, *depth);
+  }
+
+  LLVM_DEBUG({
+    if (ret.orphaned) {
+      dbgs() << "Orphaned scope in function \""
+             << scopeDesc->getFunction()->getInternalNameStr() << "\"\n";
+    }
+  });
+
+  lexicalScopeDescMap_[scopeDesc] = ret;
+  return ret;
 }
 
-Optional<int32_t> FunctionScopeAnalysis::getScopeDepth(VariableScope *VS) {
-  if (ExternalScope *ES = llvh::dyn_cast<ExternalScope>(VS)) {
-    return ES->getDepth();
-  } else {
-    ScopeData sd = calculateFunctionScopeData(VS->getFunction());
-    if (sd.orphaned)
-      return llvh::None;
-    return sd.depth;
-  }
+Optional<int32_t> FunctionScopeAnalysis::getScopeDepth(ScopeDesc *S) {
+  ScopeData sd = calculateFunctionScopeData(S);
+  if (sd.orphaned)
+    return llvh::None;
+  return sd.depth;
 }
 
 Function *FunctionScopeAnalysis::getLexicalParent(Function *F) {
-  return calculateFunctionScopeData(F).parent;
+  return calculateFunctionScopeData(F->getFunctionScopeDesc()).parent;
 }
 
 #undef DEBUG_TYPE

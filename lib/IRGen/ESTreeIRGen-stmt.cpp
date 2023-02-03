@@ -11,18 +11,20 @@ namespace hermes {
 namespace irgen {
 
 void ESTreeIRGen::genBody(ESTree::NodeList &Body) {
-  LLVM_DEBUG(dbgs() << "Compiling body.\n");
+  LLVM_DEBUG(llvh::dbgs() << "Compiling body.\n");
 
   // Generate code for the declarations statements.
   for (auto &Node : Body) {
-    LLVM_DEBUG(dbgs() << "IRGen node of type " << Node.getNodeName() << ".\n");
+    LLVM_DEBUG(
+        llvh::dbgs() << "IRGen node of type " << Node.getNodeName() << ".\n");
     genStatement(&Node);
   }
 }
 
 void ESTreeIRGen::genStatement(ESTree::Node *stmt) {
   LLVM_DEBUG(
-      dbgs() << "IRGen statement of type " << stmt->getNodeName() << "\n");
+      llvh::dbgs() << "IRGen statement of type " << stmt->getNodeName()
+                   << "\n");
   IRBuilder::ScopedLocationChange slc(Builder, stmt->getDebugLoc());
 
   Builder.getFunction()->incrementStatementCount();
@@ -103,25 +105,25 @@ void ESTreeIRGen::genStatement(ESTree::Node *stmt) {
   }
 
   if (auto *W = llvh::dyn_cast<ESTree::WhileStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'while' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'while' statement\n");
     genForWhileLoops(W, nullptr, W->_test, W->_test, nullptr, W->_body);
     return;
   }
 
   if (auto *F = llvh::dyn_cast<ESTree::ForStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'for' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'for' statement\n");
     genForWhileLoops(F, F->_init, F->_test, F->_test, F->_update, F->_body);
     return;
   }
 
   if (auto *D = llvh::dyn_cast<ESTree::DoWhileStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'do..while' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'do..while' statement\n");
     genForWhileLoops(D, nullptr, nullptr, D->_test, nullptr, D->_body);
     return;
   }
 
   if (auto *breakStmt = llvh::dyn_cast<ESTree::BreakStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'break' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'break' statement\n");
 
     auto &label = curFunction()->label(breakStmt);
     assert(label.breakTarget && "breakTarget not set");
@@ -141,7 +143,7 @@ void ESTreeIRGen::genStatement(ESTree::Node *stmt) {
 
   if (auto *continueStmt =
           llvh::dyn_cast<ESTree::ContinueStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'continue' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'continue' statement\n");
 
     auto &label = curFunction()->label(continueStmt);
     assert(label.continueTarget && "continueTarget not set");
@@ -166,7 +168,7 @@ void ESTreeIRGen::genStatement(ESTree::Node *stmt) {
   }
 
   if (auto *T = llvh::dyn_cast<ESTree::ThrowStatementNode>(stmt)) {
-    LLVM_DEBUG(dbgs() << "IRGen 'throw' statement\n");
+    LLVM_DEBUG(llvh::dbgs() << "IRGen 'throw' statement\n");
     Value *rightHandVal = genExpression(T->_argument);
     Builder.createThrowInst(rightHandVal);
 
@@ -244,7 +246,7 @@ void ESTreeIRGen::genVariableDeclarator(
 }
 
 void ESTreeIRGen::genIfStatement(ESTree::IfStatementNode *IfStmt) {
-  LLVM_DEBUG(dbgs() << "IRGen IF-stmt.\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen IF-stmt.\n");
 
   auto Parent = Builder.getInsertionBlock()->getParent();
   auto ThenBlock = Builder.createBasicBlock(Parent);
@@ -529,7 +531,7 @@ void ESTreeIRGen::genForOfStatement(ESTree::ForOfStatementNode *forOfStmt) {
 }
 
 void ESTreeIRGen::genReturnStatement(ESTree::ReturnStatementNode *RetStmt) {
-  LLVM_DEBUG(dbgs() << "IRGen Return-stmt.\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen Return-stmt.\n");
 
   Value *Value;
   // Generate IR for the return value, or undefined if this is an empty return
@@ -580,7 +582,7 @@ bool ESTreeIRGen::areAllCasesConstant(
 }
 
 void ESTreeIRGen::genSwitchStatement(ESTree::SwitchStatementNode *switchStmt) {
-  LLVM_DEBUG(dbgs() << "IRGen 'switch' statement.\n");
+  LLVM_DEBUG(llvh::dbgs() << "IRGen 'switch' statement.\n");
 
   {
     llvh::SmallVector<Literal *, 8> caseLiterals{};
@@ -735,7 +737,6 @@ void ESTreeIRGen::genImportDeclaration(
       auto *local = nameTable_.lookup(getNameFieldFromID(ids->_local));
       assert(local && "imported name should have been hoisted");
       emitStore(
-          Builder,
           Builder.createLoadPropertyInst(exports, identDefaultExport_),
           local,
           true);
@@ -745,7 +746,7 @@ void ESTreeIRGen::genImportDeclaration(
       // import * as File from 'file.js';
       auto *local = nameTable_.lookup(getNameFieldFromID(ins->_local));
       assert(local && "imported name should have been hoisted");
-      emitStore(Builder, exports, local, true);
+      emitStore(exports, local, true);
     } else {
       // import {x as y} as File from 'file.js';
       // import {x} as File from 'file.js';
@@ -758,7 +759,6 @@ void ESTreeIRGen::genImportDeclaration(
       // Get is->_imported from the exports object, because that's what the
       // other file stored it as.
       emitStore(
-          Builder,
           Builder.createLoadPropertyInst(
               exports, getNameFieldFromID(is->_imported)),
           local,
@@ -802,7 +802,7 @@ void ESTreeIRGen::genExportNamedDeclaration(
         Identifier name = getNameFieldFromID(variableDeclarator->_id);
 
         Builder.createStorePropertyInst(
-            emitLoad(Builder, nameTable_.lookup(name)), exports, name);
+            emitLoad(nameTable_.lookup(name)), exports, name);
       }
     } else if (
         auto *classDecl = llvh::dyn_cast<ESTree::ClassDeclarationNode>(decl)) {
@@ -815,7 +815,7 @@ void ESTreeIRGen::genExportNamedDeclaration(
       auto *funDecl = llvh::dyn_cast<ESTree::FunctionDeclarationNode>(decl);
       // export function x() {}
       Identifier name = getNameFieldFromID(funDecl->_id);
-      auto *fun = emitLoad(Builder, nameTable_.lookup(name));
+      auto *fun = emitLoad(nameTable_.lookup(name));
       Builder.createStorePropertyInst(fun, exports, name);
     }
 
@@ -859,7 +859,7 @@ void ESTreeIRGen::genExportDefaultDeclaration(
     // The function declaration should have been hoisted,
     // so simply load it and store it in the default slot.
     Identifier name = getNameFieldFromID(funDecl->_id);
-    auto *fun = emitLoad(Builder, nameTable_.lookup(name));
+    auto *fun = emitLoad(nameTable_.lookup(name));
     Builder.createStorePropertyInst(fun, exports, name);
   } else if (
       auto *classDecl = llvh::dyn_cast<ESTree::ClassDeclarationNode>(decl)) {

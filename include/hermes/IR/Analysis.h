@@ -156,20 +156,33 @@ class FunctionScopeAnalysis {
       return ScopeData(nullptr, 0, true);
     }
   };
-  using LexicalScopeMap = llvh::DenseMap<const Function *, ScopeData>;
-  LexicalScopeMap lexicalScopeMap_{};
 
-  /// Recursively calculate the scope data of a function \p F.
+  using LexicalScopeDescMap = llvh::DenseMap<const ScopeDesc *, ScopeData>;
+  LexicalScopeDescMap lexicalScopeDescMap_{};
+
+  /// Recursively calculate the scope data of \p scopeDesc. \p depth is
+  /// specified during analysis initialization so scopes before the top level
+  /// can be initialized.
   /// \return the ScopeData of the function.
-  ScopeData calculateFunctionScopeData(Function *F);
+  ScopeData calculateFunctionScopeData(
+      ScopeDesc *scopeDesc,
+      llvh::Optional<int> depth = llvh::None);
+
+  static Function *computeParent(
+      ScopeDesc *thisScope,
+      ScopeDesc *parentScope,
+      const ScopeData &sd);
 
  public:
-  explicit FunctionScopeAnalysis(const Function *entryPoint) {
-    lexicalScopeMap_[entryPoint] = ScopeData(nullptr, 0);
+  explicit FunctionScopeAnalysis(Function *entryPoint) {
+    ScopeData data =
+        calculateFunctionScopeData(entryPoint->getFunctionScopeDesc(), 0);
+    assert(!data.orphaned && data.depth == 0);
+    (void)data;
   }
 
-  /// Lazily get the scope depth of \p VS.
-  llvh::Optional<int32_t> getScopeDepth(VariableScope *VS);
+  /// Lazily get the scope depth of \p S.
+  llvh::Optional<int32_t> getScopeDepth(ScopeDesc *S);
 
   /// Lazily get the lexical parent of \p F, or nullptr if none.
   Function *getLexicalParent(Function *F);
@@ -179,9 +192,9 @@ class FunctionScopeAnalysis {
 /// based on a DFS visit of a dominator tree.
 namespace DomTreeDFS {
 
-/// StackNode - contains all the needed information to create a stack for doing
-/// a depth first traversal of the tree. This includes scopes for values and
-/// loads as well as the generation. There is a child iterator so that the
+/// StackNode - contains all the needed information to create a stack for
+/// doing a depth first traversal of the tree. This includes scopes for values
+/// and loads as well as the generation. There is a child iterator so that the
 /// children do not need to be stored separately.
 template <typename Visitor>
 class StackNode {

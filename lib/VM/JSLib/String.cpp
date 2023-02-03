@@ -9,6 +9,7 @@
 /// \file
 /// ES5.1 15.5 Initialize the String constructor.
 //===----------------------------------------------------------------------===//
+
 #include "JSLibInternal.h"
 
 #include "hermes/Platform/Unicode/PlatformUnicode.h"
@@ -28,7 +29,11 @@
 #endif
 
 #include <locale>
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 namespace hermes {
 namespace vm {
 
@@ -55,6 +60,13 @@ Handle<JSObject> createStringConstructor(Runtime &runtime) {
       ctx,
       stringPrototypeToString,
       0);
+  defineMethod(
+      runtime,
+      stringPrototype,
+      Predefined::getSymbolID(Predefined::at),
+      ctx,
+      stringPrototypeAt,
+      1);
   defineMethod(
       runtime,
       stringPrototype,
@@ -563,6 +575,59 @@ CallResult<HermesValue> stringRaw(void *, Runtime &runtime, NativeArgs args) {
 
 //===----------------------------------------------------------------------===//
 /// String.prototype.
+
+/// 22.1.3.1
+CallResult<HermesValue>
+stringPrototypeAt(void *, Runtime &runtime, NativeArgs args) {
+  GCScope gcScope(runtime);
+  // 1. Let O be RequireObjectCoercible(this value).
+  if (LLVM_UNLIKELY(
+          checkObjectCoercible(runtime, args.getThisHandle()) ==
+          ExecutionStatus::EXCEPTION)) {
+    return ExecutionStatus::EXCEPTION;
+  }
+
+  // 2. Let S be ToString(O).
+  auto strRes = toString_RJS(runtime, args.getThisHandle());
+  if (LLVM_UNLIKELY(strRes == ExecutionStatus::EXCEPTION)) {
+    return ExecutionStatus::EXCEPTION;
+  }
+  auto S = runtime.makeHandle(std::move(*strRes));
+
+  // 3. Let len be the length of S.
+  double len = S->getStringLength();
+
+  // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+  auto idx = args.getArgHandle(0);
+  auto relativeIndexRes = toIntegerOrInfinity(runtime, idx);
+  if (LLVM_UNLIKELY(relativeIndexRes == ExecutionStatus::EXCEPTION)) {
+    return ExecutionStatus::EXCEPTION;
+  }
+  const double relativeIndex = relativeIndexRes->getNumber();
+
+  double k;
+  // 5. If relativeIndex ≥ 0, then
+  if (relativeIndex >= 0) {
+    // a. Let k be relativeIndex.
+    k = relativeIndex;
+  } else {
+    // 6. Else,
+    // a. Let k be len + relativeIndex.
+    k = len + relativeIndex;
+  }
+
+  // 6. If k < 0 or k ≥ len, return undefined.
+  if (k < 0 || k >= len) {
+    return HermesValue::encodeUndefinedValue();
+  }
+
+  // 8. Return the substring of S from k to k + 1.
+  auto sliceRes = StringPrimitive::slice(runtime, S, k, 1);
+  if (LLVM_UNLIKELY(sliceRes == ExecutionStatus::EXCEPTION)) {
+    return ExecutionStatus::EXCEPTION;
+  }
+  return sliceRes;
+}
 
 CallResult<HermesValue>
 stringPrototypeToString(void *, Runtime &runtime, NativeArgs args) {
@@ -1678,6 +1743,7 @@ stringPrototypeReplaceAll(void *, Runtime &runtime, NativeArgs args) {
       // i. Assert: Type(replaceValue) is String.
       // ii. Let captures be a new empty List.
       auto captures = Runtime::makeNullHandle<ArrayStorageSmall>();
+      auto namedCaptures = Runtime::makeNullHandle<JSObject>();
       // iii. Let replacement be ! GetSubstitution(searchString, string,
       // position, captures, undefined, replaceValue).
       auto callRes = getSubstitution(
@@ -1686,7 +1752,11 @@ stringPrototypeReplaceAll(void *, Runtime &runtime, NativeArgs args) {
           string,
           (double)position,
           captures,
+          namedCaptures,
           replaceValueStr);
+      if (LLVM_UNLIKELY(callRes == ExecutionStatus::EXCEPTION)) {
+        return ExecutionStatus::EXCEPTION;
+      }
       replacement = vmcast<StringPrimitive>(*callRes);
     }
 
@@ -1992,10 +2062,17 @@ stringPrototypeReplace(void *, Runtime &runtime, NativeArgs args) {
     // 12. Else,
     // a. Let captures be an empty List.
     auto nullHandle = Runtime::makeNullHandle<ArrayStorageSmall>();
+    auto namedCaptures = Runtime::makeNullHandle<JSObject>();
     // b. Let replStr be GetSubstitution(matched, string, pos, captures,
     // replaceValue).
     auto callRes = getSubstitution(
-        runtime, searchString, string, pos, nullHandle, replaceValueStr);
+        runtime,
+        searchString,
+        string,
+        pos,
+        nullHandle,
+        namedCaptures,
+        replaceValueStr);
     if (LLVM_UNLIKELY(callRes == ExecutionStatus::EXCEPTION)) {
       return ExecutionStatus::EXCEPTION;
     }

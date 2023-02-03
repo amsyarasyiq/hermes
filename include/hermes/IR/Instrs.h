@@ -29,6 +29,56 @@ namespace hermes {
 /// binary operations.
 bool isSideEffectFree(Type T);
 
+/// Base class for instructions that are used for scope creation (e.g.,
+/// HBCCreateEnvironment, CreateScopeInst, etc). All these operands have the
+/// descriptor for the scope they are creating as the last operand.
+class ScopeCreationInst : public Instruction {
+  ScopeCreationInst(const ScopeCreationInst &) = delete;
+  void operator=(const ScopeCreationInst &) = delete;
+
+  // Make pushOperand private to ensure derived classes only add operands via
+  // the constructor.
+  using Instruction::pushOperand;
+
+ protected:
+  enum { CreatedScopeIdx, FirstAvailableIdx };
+
+  explicit ScopeCreationInst(ValueKind kind, ScopeDesc *scopeDesc)
+      : Instruction(kind) {
+    pushOperand(scopeDesc);
+  }
+
+  template <uint32_t which>
+  void pushOperand(Value *value) {
+    static_assert(
+        which >= FirstAvailableIdx,
+        "Use FirstAvailableIndex to offset the created ScopeDesc.");
+    pushOperand(value);
+  }
+
+ public:
+  explicit ScopeCreationInst(
+      const ScopeCreationInst *src,
+      llvh::ArrayRef<Value *> operands)
+      : Instruction(src, operands) {}
+
+  ScopeDesc *getCreatedScopeDesc() const {
+    return cast<ScopeDesc>(getOperand(CreatedScopeIdx));
+  }
+
+  SideEffectKind getSideEffect() {
+    llvm_unreachable("ScopeCreationInst must be inherited.");
+  }
+
+  WordBitSet<> getChangedOperandsImpl() {
+    llvm_unreachable("ScopeCreationInst must be inherited.");
+  }
+
+  static bool classof(const Value *V) {
+    return kindIsA(V->getKind(), ValueKind::ScopeCreationInstKind);
+  }
+};
+
 /// Base class for instructions that have exactly one operand. It guarantees
 /// that only one operand is pushed and it provides getSingleOperand().
 class SingleOperandInst : public Instruction {
@@ -484,20 +534,30 @@ class StoreStackInst : public Instruction {
   }
 };
 
-class LoadFrameInst : public SingleOperandInst {
+class LoadFrameInst : public Instruction {
   LoadFrameInst(const LoadFrameInst &) = delete;
   void operator=(const LoadFrameInst &) = delete;
 
  public:
-  explicit LoadFrameInst(Variable *alloc)
-      : SingleOperandInst(ValueKind::LoadFrameInstKind, alloc) {}
+  enum { LoadVariableIdx, EnvIdx };
+
+  explicit LoadFrameInst(Variable *alloc, ScopeCreationInst *environment)
+      : Instruction(ValueKind::LoadFrameInstKind) {
+    pushOperand(alloc);
+    pushOperand(environment);
+  }
+
   explicit LoadFrameInst(
       const LoadFrameInst *src,
       llvh::ArrayRef<Value *> operands)
-      : SingleOperandInst(src, operands) {}
+      : Instruction(src, operands) {}
 
   Variable *getLoadVariable() const {
-    return cast<Variable>(getSingleOperand());
+    return cast<Variable>(getOperand(LoadVariableIdx));
+  }
+
+  ScopeCreationInst *getEnvironment() const {
+    return cast<ScopeCreationInst>(getOperand(EnvIdx));
   }
 
   SideEffectKind getSideEffect() {
@@ -518,7 +578,7 @@ class StoreFrameInst : public Instruction {
   void operator=(const StoreFrameInst &) = delete;
 
  public:
-  enum { StoredValueIdx, VariableIdx };
+  enum { StoredValueIdx, VariableIdx, EnvIdx };
 
   Value *getValue() const {
     return getOperand(StoredValueIdx);
@@ -526,11 +586,18 @@ class StoreFrameInst : public Instruction {
   Variable *getVariable() const {
     return cast<Variable>(getOperand(VariableIdx));
   }
+  ScopeCreationInst *getEnvironment() const {
+    return cast<ScopeCreationInst>(getOperand(EnvIdx));
+  }
 
-  explicit StoreFrameInst(Value *storedValue, Variable *ptr)
+  explicit StoreFrameInst(
+      Value *storedValue,
+      Variable *ptr,
+      ScopeCreationInst *environment)
       : Instruction(ValueKind::StoreFrameInstKind) {
     pushOperand(storedValue);
     pushOperand(ptr);
+    pushOperand(environment);
   }
   explicit StoreFrameInst(
       const StoreFrameInst *src,
@@ -550,20 +617,58 @@ class StoreFrameInst : public Instruction {
   }
 };
 
+class CreateScopeInst : public ScopeCreationInst {
+  CreateScopeInst(const CreateScopeInst &) = delete;
+  void operator=(const CreateScopeInst &) = delete;
+
+ public:
+  explicit CreateScopeInst(ScopeDesc *scopeDesc)
+      : ScopeCreationInst(ValueKind::CreateScopeInstKind, scopeDesc) {}
+
+  explicit CreateScopeInst(
+      const CreateScopeInst *src,
+      llvh::ArrayRef<Value *> operands)
+      : ScopeCreationInst(src, operands) {}
+
+  SideEffectKind getSideEffect() {
+    return SideEffectKind::None;
+  }
+
+  WordBitSet<> getChangedOperandsImpl() {
+    return {};
+  }
+
+  static bool classof(const Value *V) {
+    return kindIsA(V->getKind(), ValueKind::CreateScopeInstKind);
+  }
+};
+
 class CreateFunctionInst : public Instruction {
   CreateFunctionInst(const CreateFunctionInst &) = delete;
   void operator=(const CreateFunctionInst &) = delete;
 
- public:
-  enum { FunctionCodeIdx, LAST_IDX };
-
-  explicit CreateFunctionInst(ValueKind kind, Function *code)
+ protected:
+  explicit CreateFunctionInst(
+      ValueKind kind,
+      Function *code,
+      Value *environment)
       : Instruction(kind) {
     setType(Type::createClosure());
     pushOperand(code);
+    // N.B.: All non-HBC CreateFunctionInst have a ScopeCreationInst as the
+    // environment, but that is not necessarily true about the HBC variants; the
+    // environment could be an HBCSpillMov.
+    pushOperand(environment);
   }
-  explicit CreateFunctionInst(Function *code)
-      : CreateFunctionInst(ValueKind::CreateFunctionInstKind, code) {}
+
+ public:
+  enum { FunctionCodeIdx, EnvIdx };
+
+  explicit CreateFunctionInst(Function *code, ScopeCreationInst *environment)
+      : CreateFunctionInst(
+            ValueKind::CreateFunctionInstKind,
+            code,
+            environment) {}
   explicit CreateFunctionInst(
       const CreateFunctionInst *src,
       llvh::ArrayRef<Value *> operands)
@@ -571,6 +676,10 @@ class CreateFunctionInst : public Instruction {
 
   Function *getFunctionCode() const {
     return cast<Function>(getOperand(FunctionCodeIdx));
+  }
+
+  Value *getEnvironment() const {
+    return getOperand(EnvIdx);
   }
 
   SideEffectKind getSideEffect() {
@@ -589,6 +698,10 @@ class CreateFunctionInst : public Instruction {
 class CallInst : public Instruction {
   CallInst(const CallInst &) = delete;
   void operator=(const CallInst &) = delete;
+
+  // Forces the code to use the appropriate getters instead of relying on
+  // hard-coded offsets when accessing the arguments.
+  using Instruction::getOperand;
 
  public:
   enum { CalleeIdx, ThisIdx };
@@ -612,7 +725,7 @@ class CallInst : public Instruction {
   }
 
   unsigned getNumArguments() const {
-    return getNumOperands() - 1;
+    return getNumOperands() - ThisIdx;
   }
 
   explicit CallInst(
@@ -1537,10 +1650,10 @@ class UnaryOperatorInst : public SingleOperandInst {
 
   // Convert the operator string \p into the enum representation or assert
   // fail if the string is invalud.
-  static OpKind parseOperator(StringRef op);
+  static OpKind parseOperator(llvh::StringRef op);
 
   /// \return the string representation of the operator.
-  StringRef getOperatorStr() {
+  llvh::StringRef getOperatorStr() {
     return opStringRepr[static_cast<int>(op_)];
   }
 
@@ -1628,18 +1741,18 @@ class BinaryOperatorInst : public Instruction {
 
   // Convert the operator string \p into the enum representation or assert
   // fail if the string is invalud.
-  static OpKind parseOperator(StringRef op);
+  static OpKind parseOperator(llvh::StringRef op);
 
   // Convert the assignment operator string \p into the enum representation or
   // assert fail if the string is invalud.
-  static OpKind parseAssignmentOperator(StringRef op);
+  static OpKind parseAssignmentOperator(llvh::StringRef op);
 
   // Get the operator that allows you to swap the operands, if one exists.
   // >= becomes <= and + becomes +.
   static llvh::Optional<OpKind> tryGetReverseOperator(OpKind op);
 
   /// \return the string representation of the operator.
-  StringRef getOperatorStr() {
+  llvh::StringRef getOperatorStr() {
     return opStringRepr[static_cast<int>(op_)];
   }
 
@@ -2304,20 +2417,27 @@ class ThrowIfEmptyInst : public Instruction {
   }
 };
 
-class HBCResolveEnvironment : public SingleOperandInst {
+class HBCResolveEnvironment : public ScopeCreationInst {
   HBCResolveEnvironment(const HBCResolveEnvironment &) = delete;
   void operator=(const HBCResolveEnvironment &) = delete;
 
  public:
-  explicit HBCResolveEnvironment(VariableScope *scope)
-      : SingleOperandInst(ValueKind::HBCResolveEnvironmentKind, scope) {}
+  enum { OriginScopeDescIdx = FirstAvailableIdx };
+  explicit HBCResolveEnvironment(
+      ScopeDesc *srcScopeDesc,
+      ScopeDesc *targetScopeDesc)
+      : ScopeCreationInst(
+            ValueKind::HBCResolveEnvironmentKind,
+            targetScopeDesc) {
+    pushOperand<OriginScopeDescIdx>(srcScopeDesc);
+  }
   explicit HBCResolveEnvironment(
       const HBCResolveEnvironment *src,
       llvh::ArrayRef<Value *> operands)
-      : SingleOperandInst(src, operands) {}
+      : ScopeCreationInst(src, operands) {}
 
-  VariableScope *getScope() const {
-    return cast<VariableScope>(getSingleOperand());
+  ScopeDesc *getOriginScopeDesc() const {
+    return cast<ScopeDesc>(getOperand(OriginScopeDescIdx));
   }
 
   SideEffectKind getSideEffect() {
@@ -2565,17 +2685,17 @@ class DirectEvalInst : public SingleOperandInst {
   }
 };
 
-class HBCCreateEnvironmentInst : public Instruction {
+class HBCCreateEnvironmentInst : public ScopeCreationInst {
   HBCCreateEnvironmentInst(const HBCCreateEnvironmentInst &) = delete;
   void operator=(const HBCCreateEnvironmentInst &) = delete;
 
  public:
-  explicit HBCCreateEnvironmentInst()
-      : Instruction(ValueKind::HBCCreateEnvironmentInstKind) {}
+  explicit HBCCreateEnvironmentInst(ScopeDesc *scopeDesc)
+      : ScopeCreationInst(ValueKind::HBCCreateEnvironmentInstKind, scopeDesc) {}
   explicit HBCCreateEnvironmentInst(
       const HBCCreateEnvironmentInst *src,
       llvh::ArrayRef<Value *> operands)
-      : Instruction(src, operands) {}
+      : ScopeCreationInst(src, operands) {}
 
   SideEffectKind getSideEffect() {
     return SideEffectKind::None;
@@ -2950,20 +3070,15 @@ class HBCCreateFunctionInst : public CreateFunctionInst {
   void operator=(const HBCCreateFunctionInst &) = delete;
 
  public:
-  enum { EnvIdx = CreateFunctionInst::LAST_IDX };
-
-  explicit HBCCreateFunctionInst(Function *code, Value *env)
-      : CreateFunctionInst(ValueKind::HBCCreateFunctionInstKind, code) {
-    pushOperand(env);
-  }
+  explicit HBCCreateFunctionInst(Function *code, Value *environment)
+      : CreateFunctionInst(
+            ValueKind::HBCCreateFunctionInstKind,
+            code,
+            environment) {}
   explicit HBCCreateFunctionInst(
       const HBCCreateFunctionInst *src,
       llvh::ArrayRef<Value *> operands)
       : CreateFunctionInst(src, operands) {}
-
-  Value *getEnvironment() const {
-    return getOperand(EnvIdx);
-  }
 
   static bool classof(const Value *V) {
     return kindIsA(V->getKind(), ValueKind::HBCCreateFunctionInstKind);
@@ -3028,7 +3143,7 @@ class CompareBranchInst : public TerminatorInst {
   }
 
   /// \return the string representation of the operator.
-  StringRef getOperatorStr() {
+  llvh::StringRef getOperatorStr() {
     return BinaryOperatorInst::opStringRepr[static_cast<int>(op_)];
   }
 
@@ -3084,13 +3199,23 @@ class CreateGeneratorInst : public CreateFunctionInst {
   CreateGeneratorInst(const CreateGeneratorInst &) = delete;
   void operator=(const CreateGeneratorInst &) = delete;
 
- public:
-  explicit CreateGeneratorInst(ValueKind kind, Function *genFunction)
-      : CreateFunctionInst(kind, genFunction) {
+ protected:
+  explicit CreateGeneratorInst(
+      ValueKind kind,
+      Function *genFunction,
+      Value *environment)
+      : CreateFunctionInst(kind, genFunction, environment) {
     setType(Type::createObject());
   }
-  explicit CreateGeneratorInst(Function *genFunction)
-      : CreateGeneratorInst(ValueKind::CreateGeneratorInstKind, genFunction) {}
+
+ public:
+  explicit CreateGeneratorInst(
+      Function *genFunction,
+      ScopeCreationInst *environment)
+      : CreateGeneratorInst(
+            ValueKind::CreateGeneratorInstKind,
+            genFunction,
+            environment) {}
   explicit CreateGeneratorInst(
       const CreateGeneratorInst *src,
       llvh::ArrayRef<Value *> operands)
@@ -3107,20 +3232,12 @@ class HBCCreateGeneratorInst : public CreateGeneratorInst {
   void operator=(const HBCCreateGeneratorInst &) = delete;
 
  public:
-  enum { EnvIdx = CreateGeneratorInst::LAST_IDX };
-
   explicit HBCCreateGeneratorInst(Function *code, Value *env)
-      : CreateGeneratorInst(ValueKind::HBCCreateGeneratorInstKind, code) {
-    pushOperand(env);
-  }
+      : CreateGeneratorInst(ValueKind::HBCCreateGeneratorInstKind, code, env) {}
   explicit HBCCreateGeneratorInst(
       const HBCCreateGeneratorInst *src,
       llvh::ArrayRef<Value *> operands)
       : CreateGeneratorInst(src, operands) {}
-
-  Value *getEnvironment() const {
-    return getOperand(EnvIdx);
-  }
 
   static bool classof(const Value *V) {
     return kindIsA(V->getKind(), ValueKind::HBCCreateGeneratorInstKind);

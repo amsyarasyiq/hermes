@@ -22,7 +22,11 @@
 #include <cctype>
 #include <cmath>
 #include <ctime>
+#pragma GCC diagnostic push
 
+#ifdef HERMES_COMPILER_SUPPORTS_WSHORTEN_64_TO_32
+#pragma GCC diagnostic ignored "-Wshorten-64-to-32"
+#endif
 namespace hermes {
 namespace vm {
 
@@ -897,7 +901,7 @@ static double parseESDate(StringView str) {
 
   /// Reads the next \p len characters into `tok`,
   /// but instead of consuming \p len chars, it consumes a single word
-  /// whatever how long it is (i.e. until a space is encountered).
+  /// whatever how long it is (i.e. until a space or dash is encountered).
   /// e.g.
   ///     &str ="Garbage G MayG"
   ///     scanStrAndSkipWord(3); consumeSpaces();  // &str="G MayG", &tok="Gar"
@@ -909,7 +913,7 @@ static double parseESDate(StringView str) {
     if (it + len > str.end())
       return false;
     tok = str.slice(it, it + len);
-    while (it != str.end() && !std::isspace(*it))
+    while (it != str.end() && !std::isspace(*it) && *it != '-')
       it++;
     return true;
   };
@@ -925,6 +929,21 @@ static double parseESDate(StringView str) {
   auto consumeSpaces = [&]() {
     while (it != str.end() && std::isspace(*it))
       ++it;
+  };
+
+  /// Only one dash is ever allowed, and the dash must come first.
+  /// There is no limit to the number of spaces.
+  /// This is in line with V8's behavior.
+  auto consumeSpacesOrDash = [&]() {
+    auto first = true;
+    while (it != str.end()) {
+      if (std::isspace(*it) || (first && *it == '-')) {
+        ++it;
+      } else {
+        return;
+      }
+      first = false;
+    }
   };
 
   // Weekday
@@ -960,7 +979,7 @@ static double parseESDate(StringView str) {
       // Day
       scanInt(it, end, d);
       // Month
-      consumeSpaces();
+      consumeSpacesOrDash();
       // e.g. `Janwhatever` will get read as `Jan`
       if (!scanStrAndSkipWord(3))
         return nan;
@@ -976,7 +995,7 @@ static double parseESDate(StringView str) {
       // `tok` is now set to the Month candidate.
       if (tokIsMonth()) {
         // Day
-        consumeSpaces();
+        consumeSpacesOrDash();
         if (!scanInt(it, end, d))
           return nan;
         break;
@@ -989,12 +1008,12 @@ static double parseESDate(StringView str) {
   }
 
   // Year
-  consumeSpaces();
+  consumeSpacesOrDash();
   if (!scanInt(it, end, y))
     return nan;
 
   // Hour:minute:second.
-  consumeSpaces();
+  consumeSpacesOrDash();
 
   if (it != end) {
     if (!scanInt(it, end, h))
