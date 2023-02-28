@@ -1623,7 +1623,7 @@ jsi::Value HermesRuntimeImpl::evaluateJavaScript(
       }
       zip_entry_close(zip);
       zip_close(zip);
-      bootstrap = std::string((char*)data);
+      bootstrap = std::string((char*)data, size);
       free(data); // std::string makes a copy
     }
 
