@@ -192,7 +192,7 @@ aliuFSreadFile(void *, Runtime &runtime, NativeArgs args) {
     size_t size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char s[size];
+    uint8_t s[size];
 
     if (fread(s, 1, size, f) != size) {
       fclose(f);
@@ -203,7 +203,7 @@ aliuFSreadFile(void *, Runtime &runtime, NativeArgs args) {
 
     return runtime
         .makeHandle<StringPrimitive>(
-            *StringPrimitive::create(runtime, ASCIIRef(s, size)))
+            *StringPrimitive::createEfficient(runtime, UTF8Ref(s, size)))
         .getHermesValue();
   }
 
