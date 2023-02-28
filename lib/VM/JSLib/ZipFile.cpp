@@ -114,7 +114,7 @@ zipFileReadEntry(void *, Runtime &runtime, NativeArgs args) {
 
     return runtime
         .makeHandle<StringPrimitive>(
-            *StringPrimitive::create(runtime, ASCIIRef((char *)data, size)))
+            *StringPrimitive::createEfficient(runtime, UTF8Ref((uint8_t *)data, size)))
         .getHermesValue();
   }
 
